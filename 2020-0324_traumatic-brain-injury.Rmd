@@ -1,0 +1,139 @@
+---
+title: "Traumatic Brain Injury"
+author: "Joshua Cook"
+date: "3/24/2020"
+output:
+    md_document:
+        variant: gfm
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data preparation
+
+Download the data from the GitHub [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-31/readme.md)
+
+```bash
+cd data
+
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-24/tbi_age.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-24/tbi_year.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-24/tbi_military.csv'
+
+cd ..
+```
+
+I think we will use the `tbi_age.csv` data.
+It provides the estimated number and rate (per 100,000) of injuries for various age gruops in 2014.
+
+```{r}
+library(factoextra)
+library(patchwork)
+library(tidyverse)
+
+theme_set(theme_minimal())
+```
+
+
+```{r}
+tbi_age <- read_csv(file.path("data", "tbi_age.csv")) %>%
+    janitor::clean_names()
+
+head(tbi_age)
+```
+
+There is a "0-17" age group and then smaller sub-groups in the same range, but I don't know if they are actual subsets of the "0-17" group or there is something weird with the data set.
+
+```{r}
+tbi_age %>%
+    filter(
+        type == "Emergency Department Visit" & 
+        injury_mechanism == "Unintentional Falls" &
+        age_group %in% c("0-4", "5-14")
+    ) %>%
+    pull(number_est) %>%
+    sum()
+```
+
+```{r}
+tbi_age %>%
+    filter(
+        type == "Emergency Department Visit" & 
+        injury_mechanism == "Unintentional Falls" &
+        age_group == "0-17"
+    ) %>%
+    pull(number_est)
+```
+
+The 0-17 group had 397,190 vistis to the ED due to unintentional falls and the 0-4 and 5-14 groups had 363,860 visits for the same reason, combined.
+Thus, they are likely subsets of the 0-17 group.
+This is important to avoid double counting.
+
+
+## EDA
+
+We can plot a PCA of the age groups in a space with axes for the injury mechanism.
+Since the rate estimated is per 100,000 people in the age group, we can sum the `rate_est` values within each age group and injury mechanism.
+
+```{r}
+injury_mech <- tbi_age %>%
+    filter(!age_group %in% c("Total", "0-17")) %>%
+    select(age_group, injury_mechanism, rate_est) %>%
+    group_by(age_group, injury_mechanism) %>%
+    summarise(rate_est = sum(rate_est)) %>%
+    ungroup() %>%
+    pivot_wider(age_group,
+                names_from = injury_mechanism,
+                values_from = rate_est) %>%
+    mutate_all(~ ifelse(is.na(.), 0, .)) %>%
+    as.data.frame(stringsAsFactors = FALSE) %>%
+    column_to_rownames("age_group")
+
+head(injury_mech)
+```
+
+```{r}
+injury_mech_pca <- prcomp(injury_mech, scale = TRUE, center = TRUE)
+injury_mech_pca
+```
+
+```{r}
+summary(injury_mech_pca)
+```
+
+```{r}
+fviz_eig(injury_mech_pca)
+```
+
+```{r}
+tibble(
+    pc = c(0, seq(1, ncol(injury_mech_pca$x))),
+    cum_prop = c(0, cumsum(injury_mech_pca$sdev^2 / sum(injury_mech_pca$sdev^2)))
+) %>%
+    mutate(label = paste0(round(cum_prop * 100), "%")) %>%
+    ggplot(aes(x = pc, y = cum_prop)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_vline(xintercept = 0, color = "grey70") +
+    geom_line(linetype = 2) +
+    geom_point(size = 1.2) +
+    geom_text(aes(label = label), family = "Arial", 
+              nudge_x = 0.2, nudge_y = -0.03) +
+    labs(x = "principal component",
+         y = "cumulative proportion")
+```
+
+We can see that the first three dimensions contain 97% of the information in the new injury mechanism space.
+
+From the plots below, The first dimension is defined by "Unintentional Falls" in one direction and "Intentional self-harm", "Assault", and "Motor Vehicle Crashes" in the opposite direction, mainly separating the very old from the young adults and teenagers.
+The second dimension is defined by "Unintentionally struck by or against an object" and "Other unintentional injury, mechanism unspecified" and strifies the elderly and the young (except for the 75+ and 25-34 age groups).
+The third dimension is a combination of these factors and is not as opinonated at the first two.
+
+```{r}
+fviz_pca(injury_mech_pca, axes = c(1, 2))  
+```
+
+```{r}
+fviz_pca(injury_mech_pca, axes = c(1, 3))
+```
