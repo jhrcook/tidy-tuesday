@@ -203,4 +203,3 @@ brewer_size %>%
     labs(x = "year",
          y = "sum of year-over-year")
 ```
-

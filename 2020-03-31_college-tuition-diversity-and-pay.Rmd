@@ -1,0 +1,213 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(lme4)
+library(tidymodels)
+library(magrittr)
+library(tidyverse)
+
+theme_set(theme_minimal())
+
+set.seed(0)
+```
+
+## Data preparation
+
+```bash
+cd data
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-10/tuition_cost.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-10/tuition_income.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-10/salary_potential.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-10/historical_tuition.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-10/diversity_school.csv'
+cd ..
+```
+
+Today, I would specifically like to employ a linear modex effects model using the `lmer()` function from the 'lme4' package.
+The question I ask and data set I use will be targeted towards being able to implement these tools.
+
+I think I will use the "tuition_income.csv" data:
+
+|variable    |class     |description |
+|:-----------|:---------|:-----------|
+|name        |character | School name |
+|state       |character | State Name |
+|total_price |double    | Total price in USD |
+|year        |double    | year |
+|campus      |character | On or off-campus |
+|net_cost    |double    | Net-cost - average actually paid after scholarship/award |
+|income_lvl  |character | Income bracket |
+
+```{r}
+tuition_income <- read_csv(file.path("data", "tuition_income.csv")) %>%
+    janitor::clean_names()
+```
+
+```{r}
+tuition_income %>%
+    skimr::skim()
+```
+
+The `income_lvl` data is currently a categorical variable, but I would like to model the income as a function of the rest of the variables.
+Therefore, I will make it a continuous variable by randomly sampling from a uniform distribution within the range.
+
+```{r}
+
+income_range <- tibble::tribble(
+    ~income_lvl, ~income_min, ~income_max,
+    "0 to 30,000", 0, 30e3,
+    "30,001 to 48,000", 30e3, 48e3,
+    "48_001 to 75,000", 48e3, 75e3,
+    "75,001 to 110,000", 75e3, 110e3,
+    "Over 110,000", 110e3, 150e3
+)
+
+tuition_income %<>%
+    left_join(income_range, by = "income_lvl") %>%
+    group_by(income_lvl) %>%
+    mutate(
+        n = n(),
+        income = runif(n = unique(n), 
+                       min = unique(income_min),
+                       max = unique(income_max)),
+        income = round(income)) %>%
+    ungroup()
+```
+
+To limit the scope of the analysis (and actually fit models in a reasonable amount of time), I will limit the data to just the years 2015 - 2018 and the schools to those in California and Massacheusettes.
+
+```{r}
+tuition_income %<>%
+    filter(state %in% c("MA", "CA")) %>%
+    filter(between(year, 2015, 2018))
+```
+
+I'm going to further restrict the analysis to a handful of schools, again, just ot limit the score of the analysis.
+
+```{r}
+schools <- c(
+    "Stanford",
+    "California Institute of Technology",
+    "Harvard University",
+    "Massachusetts Institute of Technology",
+    "Boston University",
+    "Boston College",
+    "Tufts University"
+)
+
+tuition_income %<>%
+    filter(
+      str_detect(name, "University of California-") | name %in% schools
+    ) %>%
+    mutate(
+      name = str_replace(name, "University of California-", "UC "),
+      name = str_replace(name, "Massachusetts Institute of Technology", "MIT"),
+      name = str_replace(name, "California Institute of Technology", "CalTech")
+    )
+```
+
+
+## EDA
+
+```{r}
+tuition_income %>%
+    ggplot(aes(x = total_price, y = net_cost)) +
+    geom_density_2d(color = "black", alpha = 0.6, size = 0.6) +
+    geom_point(aes(color = campus), size = 0.6, alpha = 0.3) +
+    scale_x_continuous(limits = c(0, 75000), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(0, 75000), expand = c(0, 0)) +
+    scale_color_brewer(palette = "Set1")
+```
+
+```{r}
+tuition_income %>%
+    ggplot(aes(x = income)) +
+    geom_density(aes(color = income_lvl, fill = income_lvl)) +
+    scale_color_brewer() +
+    scale_fill_brewer() +
+    labs(color = "income level", fill = "income level")
+```
+
+```{r}
+tuition_income %>%
+  ggplot(aes(x = net_cost, y = income)) +
+  geom_point(aes(color = name, shape = state)) +
+  geom_smooth() +
+  scale_color_manual(
+    values = randomcoloR::distinctColorPalette(n_distinct(tuition_income$name)),
+    guide = guide_legend(ncol = 2, order = 0)
+  )
+```
+
+
+## Model
+
+```{r}
+income_data <- tuition_income %>%
+    ungroup() %>%
+    select(income, name, state, year, campus, net_cost) %>%
+    mutate(
+        income = scale(income)[, 1],
+        net_cost = scale(net_cost)[, 1],
+        year = scale(year)[, 1]
+    )
+
+head(income_data)
+```
+
+```{r}
+dim(income_data)
+```
+
+### Linear model
+
+```{r}
+income_fit1 <- lm(income ~ ., data = income_data)
+summary(income_fit1)
+```
+
+```{r}
+plot(income_fit1)
+```
+
+### Generalized linear model
+
+```{r}
+income_fit2 <- glm(income ~ ., data = income_data)
+summary(income_fit2)
+```
+
+```{r}
+plot(income_fit2)
+```
+
+```{r}
+anova(income_fit1, income_fit2)
+```
+
+
+### Linear mixed effects model
+
+```{r}
+income_fit3 <- lmer(income ~ year + net_cost + campus + (1 | state/name), 
+                    data = income_data)
+summary(income_fit3)
+```
+
+```{r}
+plot(income_fit3, type = c("p", "smooth"))
+```
+
+```{r}
+lattice::qqmath(income_fit3, id = 0.05,)
+```
+
+```{r}
+confint(income_fit3)
+```
+
