@@ -1,0 +1,340 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = "#>"
+)
+
+library(conflicted)
+library(pscl)
+library(MASS)
+library(tidymodels)
+library(magrittr)
+library(tidyverse)
+
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+
+## Data preparation
+
+Download the data from the GitHub [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-31/readme.md)
+
+```bash
+cd data
+
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-03/game_goals.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-03/top_250.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-03/season_goals.csv'
+
+cd ..
+```
+
+I will use the "game_goals.csv" data: "Goals for each player and each game (only for players who started at or after 1979-80 season). This is due to limited game-level data prior to 1980."
+
+|variable          |class     |description |
+|:-----------------|:---------|:-----------|
+|player            |character | Player name |
+|season            |double    | Season year |
+|rank              |double    | Rank equivalent to game_num for most |
+|date              |double    | Date of game (ISO format) |
+|game_num          |double    | Game number within each season|
+|age               |character | Age in year-days|
+|team              |character | NHL team |
+|at                |character | At: blank if at home, @ if at the opponent arena |
+|opp               |character | Opponent |
+|location          |character | Location = location of game (home or away) |
+|outcome           |character | Outcome = Won, Loss, Tie |
+|goals             |double    | Goals Scored by player|
+|assists           |double    | Assists - helped with goal for other player |
+|points            |double    | Points - Sum of goals + assists |
+|plus_minus        |double    | Plus Minus - Team points minus opponents points scored while on ice|
+|penalty_min       |double    | Penalty minutes - minutes spent in penalty box |
+|goals_even        |double    | Goals scored while even-strength |
+|goals_powerplay   |double    | Goals scored on powerplay |
+|goals_short       |double    | Goals scored while short-handed|
+|goals_gamewinner  |double    | Goals that were gamewinner|
+|assists_even      |double    | Assists while even strength|
+|assists_powerplay |double    | Assists on powerplay|
+|assists_short     |double    | Assists on shorthanded|
+|shots             |double    | Shots|
+|shot_percent      |double    | Shot percent (goals/shots)|
+
+```{r}
+game_goals <- read_csv(file.path("data", "game_goals.csv")) %>%
+  janitor::clean_names()
+
+game_goals
+```
+
+```{r}
+game_goals %<>%
+  select(-at) %>%
+  mutate(location = factor(location, levels = c("Home", "Away")))
+```
+
+## EDA
+
+```{r}
+game_goals %>%
+  group_by(player) %>%
+  summarise(total_goals = sum(goals)) %>%
+  ungroup() %>%
+  mutate(player = fct_reorder(player, total_goals)) %>%
+  ggplot(aes(x = player, y = total_goals)) +
+  geom_col() +
+  scale_y_continuous(expand = c(0, 0)) +
+  coord_flip() +
+  theme(
+    axis.title.y = element_blank()
+  ) +
+  labs(y = "total goals")
+```
+
+```{r}
+game_goals %>%
+  group_by(player) %>%
+  summarise(
+    total_goals = sum(goals),
+    total_games = n_distinct(date)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    goals_per_game = total_goals / total_games,
+    player = fct_reorder(player, goals_per_game)
+  ) %>%
+  ggplot(aes(x = player, y = goals_per_game)) +
+  geom_col() +
+  scale_y_continuous(expand = c(0, 0)) +
+  coord_flip() +
+  theme(
+    axis.title.y = element_blank()
+  ) +
+  labs(y = "total goals")
+```
+
+```{r}
+game_goals %>%
+  count(goals) %>%
+  mutate(goals = factor(goals)) %>%
+  ggplot(aes(x = goals, y = n)) +
+  geom_col() +
+  labs(
+    x = "goals in a game",
+    y = "count"
+  )
+```
+
+```{r}
+game_goals %>%
+  count(shots, goals, name = "count") %>%
+  mutate(count = log10(count + 1)) %>%
+  ggplot(aes(x = shots, y = goals)) +
+  geom_tile(aes(fill = count), color = NA) +
+  scale_fill_viridis_c() +
+  labs(fill = "log( count )")
+```
+
+## Model
+
+We will focus on the goals per game for Alex Ovechkin as he is the reason this data was chosen for Tidytuesday.
+
+```{r}
+ovechkin_goals <- game_goals %>%
+  filter(player == "Alex Ovechkin")
+```
+
+### First Poisson Regression
+
+The frist model will be a Poisson regression for the number of goals per game using the game number in the season, number of shots, the location (home or away) for the game, the opponent, and the interaction between the location and the opponent.
+
+```{r}
+goals_poiss_1 <- glm(goals ~ game_num + shots + penalty_min + location:opp,
+  data = ovechkin_goals,
+  family = "poisson"
+)
+summary(goals_poiss_1)
+```
+
+Ovechkin seems to do quite well against MDA away, but the number of shots is the strongest predictor.
+
+```{r}
+tidy(goals_poiss_1) %>%
+  arrange(-estimate) %>%
+  filter(p.value < 0.05)
+```
+
+We can test the fit of the model by comparing the residual with the deviance.
+We hope for there to be no statstically detectable difference.
+
+```{r}
+with(goals_poiss_1, cbind(
+  res.deviance = deviance,
+  df = df.residual,
+  p = pchisq(deviance, df.residual, lower.tail = FALSE)
+))
+```
+
+It seems like the model had good fit, but the following plots would suggest there is a better model we could use.
+
+```{r}
+plot(goals_poiss_1)
+```
+
+```{r}
+tibble(
+  pred_goals = predict(goals_poiss_1, type = "response"),
+  real_goals = ovechkin_goals$goals
+) %>%
+  mutate(real_goals = factor(real_goals)) %>%
+  ggplot(aes(x = real_goals, pred_goals)) +
+  ggbeeswarm::geom_quasirandom(size = 1, color = "grey50", alpha = 0.4) +
+  geom_boxplot(
+    color = "grey20", fill = "grey50", alpha = 0.2,
+    outlier.shape = NA
+  )
+```
+
+### Second Poisson Regression
+
+Perhaps, the interaction between the opponent and location is not important.
+We can test this by fitting another model with the interaction term and comparing it to the first model.
+
+```{r}
+goals_poiss_2 <- glm(goals ~ game_num + penalty_min + shots + location + opp,
+  data = ovechkin_goals,
+  family = "poisson"
+)
+summary(goals_poiss_2)
+```
+
+First, the new model does seem to fit the data well.
+
+```{r}
+with(goals_poiss_2, cbind(
+  res.deviance = deviance,
+  df = df.residual,
+  p = pchisq(deviance, df.residual, lower.tail = FALSE)
+))
+```
+
+Further, the removal of the interaction term does not seem to make the model worse.
+Therefore, it should probably be removed from the model (i.e. use `goals_poiss_2`).
+
+```{r}
+anova(goals_poiss_1, goals_poiss_2, test = "Chisq")
+```
+
+### First Negative Binomial Regression
+
+One possible issue with the previous models is that the Poisson regression assumes that the (conditional) variance equals the (conditional) mean, i.e., the data is not over-dispersed.
+If it is, then a Negative Binomial regression may work better.
+
+We can test this by first fitting a negative binomial and then using the `odTest()` from the 'pscl' package to test for over-dispersion.
+
+```{r}
+goals_nb_1 <- glm.nb(goals ~ game_num + shots + location:opp,
+  data = ovechkin_goals
+)
+summary(goals_nb_1)
+```
+
+```{r}
+odTest(goals_nb_1)
+```
+
+Since this data does not seem to be over-dispersed, the problem with the Poisson regressions were likely that the chosen parameters were not useful.
+
+### Third Poisson Regression
+
+We can try a simpler model by only including the location and the number of shots.
+
+```{r}
+goals_poiss_3 <- glm(goals ~ shots,
+  data = ovechkin_goals,
+  family = "poisson"
+)
+
+summary(goals_poiss_3)
+```
+
+The model seems to have a good fit.
+
+```{r}
+with(goals_poiss_3, cbind(
+  res.deviance = deviance,
+  df = df.residual,
+  p = pchisq(deviance, df.residual, lower.tail = FALSE)
+))
+```
+
+However, this model is not much better than the second Poisson regression model, further suggesting that the largest effect is the number of shots.
+
+```{r}
+anova(goals_poiss_2, goals_poiss_3, test = "Chisq")
+```
+
+```{r}
+plot(goals_poiss_3)
+```
+
+
+```{r}
+tibble(
+  pred_goals = predict(goals_poiss_3, type = "response"),
+  real_goals = ovechkin_goals$goals
+) %>%
+  mutate(real_goals = factor(real_goals)) %>%
+  ggplot(aes(x = real_goals, pred_goals)) +
+  ggbeeswarm::geom_quasirandom(size = 1, color = "grey50", alpha = 0.4) +
+  geom_boxplot(
+    color = "grey20", fill = "grey50", alpha = 0.2,
+    outlier.shape = NA
+  )
+```
+
+### Second Negative Binomial Regression
+
+We can do the same for the negative binomial.
+
+```{r}
+goals_nb_2 <- glm.nb(goals ~ shots,
+  data = ovechkin_goals
+)
+summary(goals_nb_2)
+```
+
+However, it still does not seem like there is over-dispersion.
+
+```{r}
+odTest(goals_nb_2)
+```
+
+### Zero-Inflated Poisson Regression
+
+The last model I want to try is a zero-inflated Poisson.
+It is possible that there is zero-inflation in this model because Ovechkin likely did not play every single minute of every game.
+The time he is not playing would count as zero goals, therefore there are two classes of zeros: those when Ovechkin was playing and did not score and when Ovechkin was not playing and did not score.
+
+I tried modeling the zero-inflation as a factor of the game number and minutes in the penalty box.
+Perhaps as the season progresses, he is more likely to get injured or be more tired in general.
+
+```{r}
+goals_zipois <- zeroinfl(goals ~ shots | game_num + penalty_min,
+  data = ovechkin_goals
+)
+summary(goals_zipois)
+```
+
+However, it does not seem like the zero-inflation model is significant.
+
+## Conclusion
+
+![](misc_assets/office-900x600.jpg)

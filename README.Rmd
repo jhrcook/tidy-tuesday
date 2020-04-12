@@ -53,3 +53,11 @@ I tried to do some classic linear modeling and mixed effects modeling, but the d
 Still, I got some practice with this method and read plenty about it online during the process.
 
 ![](./2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)
+
+**March 3, 2020**
+
+[date](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-03/readme.md) | [analysis](2020-03-03_hockey-goals.md)
+
+I got some practice build regression models for count data by building Poisson, Negative Binomial, and Zero-Inflated Poisson regression models for estimating the effect of various game parameters on the goals scored by Alex Ovechkin.
+
+![](./2020-03-03_hockey-goals_files/figure-gfm/unnamed-chunk-12-1.png)
