@@ -21,9 +21,11 @@ library(fontawesome)
 
 **April 14, 2020**
 
-[data]() | [analysis]()
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-04-14/readme.md) | [analysis](2020-04-14_best-rap-artists.md)
 
+I built a graph of the songs, artists, and critics using Rap song rankings.
 
+![](./2020-04-14_best-rap-artists_files/figure-gfm/unnamed-chunk-15-1.png)
 
 **April 7, 2020**
 

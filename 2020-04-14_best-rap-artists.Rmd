@@ -1,0 +1,300 @@
+---
+title: "Best Rap Artists"
+author: "Joshua Cook"
+date: "4/14/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(conflicted)
+library(glue)
+library(magrittr)
+library(tidygraph)
+library(ggraph)
+library(tidyverse)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```bash
+cd data
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/polls.csv'
+wget 'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-14/rankings.csv'
+cd ..
+```
+
+```{r}
+rap_polls <- read_csv(file.path("data", "polls.csv")) %>%
+    janitor::clean_names() %>%
+    select(-critic_country2)
+rap_rankings <- read_csv(file.path("data", "rankings.csv")) %>%
+    janitor::clean_names()
+```
+
+```{r}
+rap_rankings %>% 
+    count(title, artist) %>% 
+    filter(n > 1)
+```
+
+
+The song *All Of The Lights* by Kanye West was split into two songs for some reason in the polls, but I manually combined the data and reevaluated the rankings.
+
+```{r}
+kw_all_of_the_light <- rap_rankings %>% 
+    filter(title == "All Of The Lights") %>%
+    mutate(gender = "mixed") %>%
+    group_by(title, artist, year, gender) %>%
+    summarise(points = sum(points),
+              n = sum(n),
+              n1 = sum(n1),
+              n2 = sum(n2),
+              n3 = sum(n3),
+              n4 = sum(n4),
+              n5 = sum(n5)) %>%
+    ungroup() %>%
+    mutate(id = 0) %>%
+    select(all_of(colnames(rap_rankings))) %>%
+    as_tibble()
+
+rap_rankings %<>%
+    filter(title != "All Of The Lights") %>%
+    bind_rows(kw_all_of_the_light)
+```
+
+
+## EDA
+
+### `rap_polls`
+
+```{r}
+rap_polls %>%
+    count(gender) %>%
+    ggplot(aes(x = gender, y = n)) +
+    geom_col(aes(fill = gender)) +
+    theme(legend.position = "none",
+          axis.title.x = element_blank()) +
+    labs(y = "count",
+         title = "Distribution of genders in top-rated Rap songs")
+```
+
+```{r}
+rap_polls %>%
+    count(year) %>%
+    ggplot(aes(x = year, y = n)) +
+    geom_point() +
+    geom_line(alpha = 0.5) +
+    geom_smooth(color = "black") +
+    scale_x_continuous(expand = c(0, 0)) +
+    labs(x = "year",
+         y = "number of songs included in critic rankings",
+         title = "The number of songs critics included in their rankings per year")
+```
+
+```{r}
+rap_polls %>%
+    count(title, artist, sort = T) %>%
+    top_n(20, wt = n) %>%
+    mutate(lbl = paste0(artist, ": ", title),
+           lbl = fct_reorder(lbl, n)) %>%
+    ggplot(aes(x = n, y = lbl)) +
+    geom_col() +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
+    theme(axis.title.y = element_blank()) +
+    labs(x = "count",
+         title = "Songs most frequently included in\ncritic top-5 rankings")
+```
+
+### `rap_rankings`
+
+```{r}
+rap_rankings %>%
+    select(title, artist, year, points) %>%
+    set_names(c("Song", "Artist", "Year", "Points")) %>%
+    head(n = 10) %>%
+    knitr::kable()
+```
+
+```{r}
+rap_rankings %>%
+    distinct(title, artist) %>%
+    count(artist) %>%
+    top_n(20, wt = n) %>%
+    mutate(artist = fct_reorder(artist, n)) %>%
+    ggplot(aes(x = n, y = artist)) +
+    geom_col() +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
+    theme(axis.title.y = element_blank()) +
+    labs(x = "count",
+         title = "Number of songs per artist in rankings")
+```
+
+## Graph
+
+```{r}
+rap_rankings_select <- rap_rankings %>%
+    select()
+rap_polls_select <- rap_polls %>%
+    select(-gender, -year) %>%
+    rename(critic_rank = rank)
+```
+
+```{r}
+rap_data <- rap_rankings %>%
+    select(-(n1:n5)) %>%
+    left_join(rap_polls_select, by = c("title", "artist")) %>%
+    mutate(title = ifelse(
+        title == "Hip Hop", glue("{title} ({artist})"), title
+    ))
+
+rap_data
+```
+
+```{r}
+rap_el_1 <- rap_data %>%
+    select(critic_name, title) %>%
+    set_names(c("from", "to"))
+rap_el_2 <- rap_data %>%
+    select(artist, title) %>%
+    set_names(c("from", "to"))
+
+
+rap_song_data <- rap_data %>%
+    distinct(title, year, points)
+
+rap_artist_data <- rap_data %>%
+    distinct(title, artist, year, gender, points) %>%
+    group_by(artist) %>%
+    summarise(total_points = sum(points),
+              num_songs = n_distinct(title)) %>%
+    ungroup()
+
+rap_critic_data <- rap_data %>%
+    distinct(critic_name, critic_rols, critic_rols)
+
+rap_graph <- as_tbl_graph(bind_rows(rap_el_1, rap_el_2)) %N>%
+    mutate(type = case_when(
+        name %in% rap_data$title ~ "song_title",
+        name %in% rap_data$artist ~ "song_artist",
+        name %in% rap_data$critic_name ~ "critic_name"
+    )) %N>%
+    left_join(rap_song_data, by = c("name" = "title")) %>%
+    left_join(rap_artist_data, by = c("name" = "artist")) %>%
+    left_join(rap_critic_data, by = c("name" = "critic_name"))
+
+rap_graph
+```
+
+Three components in total, and two are far smaller than the rest.
+
+```{r}
+# Number of components.
+igraph::count_components(rap_graph)
+
+# Size of components.
+igraph::decompose(rap_graph) %>% map_dbl(igraph::vcount)
+```
+
+These subcomponents represent two different critics with completely unique lists of favorite songs.
+Further, their songs are all from artists without any other ranked songs.
+
+```{r}
+rap_graph %N>%
+    jhcutils::filter_component_size(min_size = 0, max_size = 15) %>%
+    ggraph(layout = "stress") +
+    geom_edge_link(alpha = 0.4, color = "grey50", width = 1.3) +
+    geom_node_point(aes(color = type), size = 3) +
+    geom_node_text(aes(label = name, color = type), 
+                   repel = TRUE, family = "Arial") +
+    scale_color_brewer(palette = "Set1") +
+    theme_graph()
+```
+
+```{r, fig.height=8, fig.width=8}
+rap_graph %N>%
+    jhcutils::get_giant_component() %>%
+    mutate(centrality = centrality_betweenness(directed = FALSE),
+           lbl = ifelse(centrality > quantile(centrality, 0.95), name, NA)) %E>%
+    mutate(centrality = centrality_edge_betweenness(directed = FALSE)) %N>%
+    ggraph(layout = "stress") +
+    geom_edge_link(aes(alpha = centrality), color = "grey50", width = 1) +
+    geom_node_point(aes(color = type, size = centrality), alpha = 0.7) +
+    geom_node_text(aes(label = lbl), color = "grey25",
+                   repel = TRUE, size = 3, family = "Arial") +
+    scale_color_brewer(palette = "Set1") +
+    scale_edge_alpha_continuous(range = c(0.2, 0.9), guide = NULL) +
+    scale_size_continuous(range = c(0.8, 6), guide = NULL) +
+    scale_alpha_continuous(range =c(0.2, 0.8), guide = NULL) +
+    theme_graph() +
+    theme(legend.position = "bottom")
+```
+
+Potentially better visualization by reducing the graph down to the minimum spanning tree.
+
+```{r, fig.height=8, fig.width=8}
+rap_graph %N>%
+    jhcutils::get_giant_component() %>%
+    mutate(centrality = centrality_betweenness(directed = FALSE),
+           lbl = ifelse(centrality > quantile(centrality, 0.95), name, NA)) %E>%
+    mutate(centrality = centrality_edge_betweenness(directed = FALSE)) %N>%
+    convert(to_minimum_spanning_tree) %>%
+    ggraph(layout = "stress") +
+    geom_edge_link(aes(alpha = centrality), color = "grey50", width = 1) +
+    geom_node_point(aes(color = type, size = centrality), alpha = 0.7) +
+    geom_node_text(aes(label = lbl), color = "grey25",
+                   repel = TRUE, size = 3, family = "Arial") +
+    scale_color_brewer(palette = "Set1") +
+    scale_edge_alpha_continuous(range = c(0.2, 0.9), guide = NULL) +
+    scale_size_continuous(range = c(0.8, 6), guide = NULL) +
+    scale_alpha_continuous(range =c(0.2, 0.8), guide = NULL) +
+    theme_graph() +
+    theme(legend.position = "bottom")
+```
+
+Group the critics by clustering the graph.
+
+```{r, fig.height=8, fig.width=8}
+clustered_rap_graph <- rap_graph %N>%
+    jhcutils::get_giant_component() %>%
+    convert(to_undirected) %>%
+    mutate(cls = group_spinglass()) %E>%
+    filter(.N()$cls[from] == .N()$cls[to])
+
+clustered_rap_graph %>%
+    ggraph(layout = "stress") +
+    geom_edge_link(alpha = 0.4, color = "grey50", width = 1) +
+    geom_node_point(aes(color = type), size = 1.3, alpha = 0.7) +
+    scale_color_brewer(palette = "Set1") +
+    theme_graph() +
+    theme(legend.position = "bottom")
+```
+
+The critics clustered based on their relationships in the graph.
+
+```{r}
+clustered_rap_graph %N>%
+    as_tibble() %>%
+    select(name, type, cls) %>%
+    filter(type == "critic_name") %>%
+    arrange(cls) %>%
+    group_by(cls) %>%
+    summarise(critics = paste0(name, collapse = ", ")) %>%
+    knitr::kable()
+```
+
+
+### Future directions
+
+Here are some of the ways this type of data structure could be useful:
+
+1. Using the closeness on the graph to recommend songs or artists to the people based on songs they already know and like.
+2. Finding the core rap songs and artists.
+3. Grouping the critics, artists, or songs by using a graph cutting or clustering algorithm.
+4. Predicting similarity of artists, songs, and critics.
