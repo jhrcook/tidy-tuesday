@@ -1,5 +1,7 @@
 ---
-title: "Untitled"
+title: "Hockey Goals"
+author: "Joshua Cook"
+date: "3/3/2020"
 output: github_document
 ---
 

@@ -2,9 +2,7 @@
 title: "Tour de France"
 author: "Joshua Cook"
 date: "4/7/2020"
-output:
-  md_document:
-    variant: gfm
+output: github_document
 ---
 
 ```{r setup, include=FALSE}

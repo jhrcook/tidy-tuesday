@@ -2,9 +2,7 @@
 title: "Traumatic Brain Injury"
 author: "Joshua Cook"
 date: "3/24/2020"
-output:
-    md_document:
-        variant: gfm
+output: github_document
 ---
 
 ```{r setup, include=FALSE}

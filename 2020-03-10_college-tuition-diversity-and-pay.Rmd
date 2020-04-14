@@ -1,5 +1,7 @@
 ---
-title: "Untitled"
+title: "College Tuition, Diversity, and Pay"
+author: "Joshua Cook"
+date: "3/10/2020"
 output: github_document
 ---
 

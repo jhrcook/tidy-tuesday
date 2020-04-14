@@ -6,6 +6,10 @@ on a new “toy” data set.
 
 ## Log
 
+**April 14, 2020**
+
+[data]() | [analysis]()
+
 **April 7, 2020**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-04-07/readme.md)
@@ -30,28 +34,28 @@ jump of very small microbreweries to higher capacity in 2018 and 2019.
 **March 24, 2020**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-24/readme.md)
-| [analysis](2020-0324_traumatic-brain-injury.md)
+| [analysis](2020-03-24_traumatic-brain-injury.md)
 
 The data was a bit more limiting because we only had summary statistics
 for categorical variables, but I was able to use PCA to identify some
 interesting properties of the TBI sustained by the different age groups.
 
-![](./2020-0324_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-10-1.png)
+![](./2020-03-24_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-10-1.png)
 
 **March 10, 2020**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-10/readme.md)
-| [analysis](2020-03-31_college-tuition-diversity-and-pay.md)
+| [analysis](2020-03-10_college-tuition-diversity-and-pay.md)
 
 I tried to do some classic linear modeling and mixed effects modeling,
 but the dat didn’t really require it. Still, I got some practice with
 this method and read plenty about it online during the process.
 
-![](./2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)
+![](./2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)
 
 **March 3, 2020**
 
-[date](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-03/readme.md)
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-03/readme.md)
 | [analysis](2020-03-03_hockey-goals.md)
 
 I got some practice build regression models for count data by building

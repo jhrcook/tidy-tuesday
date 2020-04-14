@@ -1,5 +1,7 @@
-Untitled
+College Tuition, Diversity, and Pay
 ================
+Joshua Cook
+3/10/2020
 
 ## Data preparation
 
@@ -56,14 +58,14 @@ tuition_income %>%
     ##  n variables: 7 
     ##  group variables:  
     ## 
-    ## ── Variable type:character ──────────────────────────────────────────────
+    ## ── Variable type:character ───────────────────────────────────────────────────────────────────────────────
     ##    variable missing complete      n min max empty n_unique
     ##      campus       0   209012 209012   9  10     0        2
     ##  income_lvl       0   209012 209012  11  17     0        5
     ##        name       0   209012 209012   6  75     0     3664
     ##       state       0   209012 209012   2   2     0       51
     ## 
-    ## ── Variable type:numeric ────────────────────────────────────────────────
+    ## ── Variable type:numeric ─────────────────────────────────────────────────────────────────────────────────
     ##     variable missing complete      n     mean       sd     p0      p25     p50
     ##     net_cost       0   209012 209012 16784.92  8887.16 -15101 10148.56 16207.1
     ##  total_price       0   209012 209012 30102.19 13824.7    4906 19186    26286  
@@ -151,7 +153,7 @@ tuition_income %>%
 
     ## Warning: Removed 3 rows containing missing values (geom_point).
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
 tuition_income %>%
@@ -162,7 +164,7 @@ tuition_income %>%
     labs(color = "income level", fill = "income level")
 ```
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
 
 ``` r
 tuition_income %>%
@@ -177,7 +179,7 @@ tuition_income %>%
 
     ## `geom_smooth()` using method = 'loess' and formula 'y ~ x'
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ## Model
 
@@ -257,7 +259,7 @@ summary(income_fit1)
 plot(income_fit1)
 ```
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-2.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-3.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-4.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-2.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-3.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-12-4.png)<!-- -->
 
 ### Generalized linear model
 
@@ -310,7 +312,7 @@ summary(income_fit2)
 plot(income_fit2)
 ```
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-2.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-3.png)<!-- -->![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-4.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-2.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-3.png)<!-- -->![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-14-4.png)<!-- -->
 
 ``` r
 anova(income_fit1, income_fit2)
@@ -374,13 +376,13 @@ summary(income_fit3)
 plot(income_fit3, type = c("p", "smooth"))
 ```
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
 ``` r
 lattice::qqmath(income_fit3, id = 0.05,)
 ```
 
-![](2020-03-31_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
+![](2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
 
 ``` r
 confint(income_fit3)

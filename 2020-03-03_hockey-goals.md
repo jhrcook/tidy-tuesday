@@ -1,5 +1,7 @@
-Untitled
+Hockey Goals
 ================
+Joshua Cook
+3/3/2020
 
 ## Data preparation
 

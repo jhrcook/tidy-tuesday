@@ -1,3 +1,8 @@
+Traumatic Brain Injury
+================
+Joshua Cook
+3/24/2020
+
 ## Data preparation
 
 Download the data from the GitHub
@@ -30,14 +35,14 @@ library(patchwork)
 library(tidyverse)
 ```
 
-    ## ── Attaching packages ─────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──
+    ## ── Attaching packages ───────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──
 
     ## ✓ tibble  3.0.0           ✓ purrr   0.3.3      
     ## ✓ tidyr   1.0.0           ✓ dplyr   0.8.99.9002
     ## ✓ readr   1.3.1           ✓ stringr 1.4.0      
     ## ✓ tibble  3.0.0           ✓ forcats 0.4.0
 
-    ## ── Conflicts ────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ── Conflicts ──────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
     ## x dplyr::filter() masks stats::filter()
     ## x dplyr::lag()    masks stats::lag()
 
@@ -216,7 +221,7 @@ summary(injury_mech_pca)
 fviz_eig(injury_mech_pca)
 ```
 
-![](2020-0324_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](2020-03-24_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
 tibble(
@@ -235,7 +240,7 @@ tibble(
          y = "cumulative proportion")
 ```
 
-![](2020-0324_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](2020-03-24_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 We can see that the first three dimensions contain 97% of the
 information in the new injury mechanism space.
@@ -254,10 +259,10 @@ opinonated at the first two.
 fviz_pca(injury_mech_pca, axes = c(1, 2))  
 ```
 
-![](2020-0324_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](2020-03-24_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 fviz_pca(injury_mech_pca, axes = c(1, 3))
 ```
 
-![](2020-0324_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](2020-03-24_traumatic-brain-injury_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
