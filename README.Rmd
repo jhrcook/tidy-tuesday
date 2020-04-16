@@ -2,9 +2,7 @@
 title: "#TidyTuesdays"
 author: "Joshua Cook"
 date: "4/7/2020"
-output:
-  md_document:
-    variant: gfm
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -69,3 +67,8 @@ Still, I got some practice with this method and read plenty about it online duri
 I got some practice build regression models for count data by building Poisson, Negative Binomial, and Zero-Inflated Poisson regression models for estimating the effect of various game parameters on the goals scored by Alex Ovechkin.
 
 ![](./2020-03-03_hockey-goals_files/figure-gfm/unnamed-chunk-12-1.png)
+
+**January 21, 2020**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-21/readme.md) | [analysis](2020-01-21_spotify-songs.md)
+

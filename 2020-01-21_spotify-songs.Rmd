@@ -1,0 +1,296 @@
+---
+title: "Spotify Songs"
+author: "Joshua Cook"
+date: "1/21/2020"
+output: github_document
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(conflicted)
+library(GGally)
+library(factoextra)
+library(tictoc)
+library(lubridate)
+library(magrittr)
+library(tidyverse)
+
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_minimal())
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+spotify_songs <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv') %>%
+    mutate(track_album_release_date = ymd(track_album_release_date)) 
+```
+
+A few dates failed to parse because they just have the year, not month-day-year.
+I do not plan to use this feature as an input for the model, so I will not worry about the parsing failures.
+
+Some `track_ids` appear multiple times.
+This is likely caused by the same song being in multiple playlists.
+Annoyingly, over 1,600 songs are in multiple playlists with different genre assignments.
+
+```{r}
+# Removing playlist information removes all duplicates.
+spotify_songs %>%
+    select(-c(playlist_name, playlist_id, 
+              playlist_genre, playlist_subgenre)) %>%
+    distinct() %>%
+    count(track_id) %>%
+    filter(n > 1)
+```
+
+
+```{r}
+# Removing all playlist info except for genre does not remove all duplicates.
+spotify_songs %>%
+    select(-c(playlist_name, playlist_id, playlist_subgenre)) %>%
+    distinct() %>%
+    count(track_id) %>%
+    filter(n > 1)
+```
+
+
+## EDA
+
+### Looking at features directly
+
+```{r}
+spotify_songs %>%
+    ggplot(aes(x = track_popularity)) +
+    geom_histogram(binwidth = 5,  alpha = 0.5,
+                   color = "darkcyan", fill = "darkcyan") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0))) +
+    labs(x = "track popularity",
+         y = "count",
+         title = "Distribution of song popularity")
+```
+
+```{r, warning=FALSE, message=FALSE}
+spotify_songs %>%
+    sample_n(200) %>%
+    select(danceability, energy, speechiness, acousticness, 
+           instrumentalness, liveness, valence) %>%
+    ggpairs() +
+    theme_minimal(base_size = 6)
+```
+
+```{r}
+spotify_songs %>%
+    group_by(playlist_genre) %>%
+    summarise(n = n_distinct(track_id)) %>%
+    ungroup() %>%
+    ggplot(aes(x = playlist_genre, y = n)) +
+    geom_col(aes(fill = playlist_genre)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+    theme(legend.position = "none") +
+    labs(x = "Genre", y = "count", title = "Number of songs per genre")
+```
+
+```{r}
+spotify_songs %>%
+    group_by(playlist_genre, playlist_subgenre) %>%
+    summarise(n = n_distinct(track_id)) %>%
+    ungroup() %>%
+    ggplot(aes(x = n, y = playlist_subgenre)) +
+    facet_wrap(~ playlist_genre, scales = "free") +
+    geom_col(aes(fill = playlist_genre)) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.05))) +
+    theme(legend.position = "none") +
+    labs(x = "count", y = "Subgrene", title = "Number of songs per subgenre")
+```
+
+```{r}
+spotify_songs %>%
+    filter(!is.na(track_album_release_date)) %>%
+    ggplot(aes(x = track_album_release_date, y = track_popularity)) +
+    geom_point(size = 0.5, alpha = 0.2, color = "dodgerblue") +
+    geom_density2d(color = "black", lty = 2, size = 1)
+```
+
+```{r}
+spotify_songs %>%
+    filter(!is.na(track_album_release_date)) %>%
+    mutate(track_release_day = yday(track_album_release_date)) %>%
+    ggplot(aes(x = track_release_day, y = track_popularity)) +
+    geom_point(size = 0.5, alpha = 0.2, color = "dodgerblue") +
+    geom_density2d(color = "black", lty = 2, size = 1)
+```
+
+### PCA & t-SNE
+
+```{r}
+spotify_songs %>%
+    select(track_id, danceability:tempo) %>%
+    skimr::skim()
+
+spotify_songs_data <- spotify_songs %>%
+    select(track_id, danceability:tempo) %>%
+    distinct() %>%
+    as.data.frame() %>%
+    column_to_rownames("track_id")
+
+song_pca <- prcomp(spotify_songs_data, scale = TRUE, center = TRUE)
+
+summary(song_pca)
+
+fviz_eig(song_pca)
+
+tibble(
+    pc = c(0, seq(1, ncol(song_pca$x))),
+    cum_prop = c(0, cumsum(song_pca$sdev^2 / sum(song_pca$sdev^2)))
+) %>%
+    mutate(label = paste0(round(cum_prop * 100), "%")) %>%
+    ggplot(aes(x = pc, y = cum_prop)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_vline(xintercept = 0, color = "grey70") +
+    geom_line(linetype = 2) +
+    geom_point(size = 1.2) +
+    geom_text(aes(label = label), family = "Arial", 
+              nudge_x = 0.2, nudge_y = -0.03) +
+    labs(x = "principal component",
+         y = "cumulative proportion")
+
+fviz_pca_var(song_pca, axes = c(1, 2))
+fviz_pca_var(song_pca, axes = c(1, 3))
+```
+
+```{r}
+songs_in_pca_mat <- unique(song_pca$x)
+
+songs_in_pca <- songs_in_pca_mat %>%
+    as.data.frame(stringsAsFactors = FALSE) %>%
+    rownames_to_column("track_id") %>%
+    as_tibble() %>%
+    left_join(spotify_songs %>% select(track_id:track_popularity, 
+                                       playlist_genre:playlist_subgenre),
+              by = "track_id") %>%
+    group_by(track_id) %>%
+    filter(n() == 1) %>%
+    ungroup()
+
+songs_in_pca %>%
+    sample_n(3000) %>%
+    ggplot(aes(x = PC1, y = PC2, color = playlist_genre)) +
+    geom_point(size = 1, alpha = 0.5) +
+    labs(color = "genre",
+         title = "PCA of songs by their music characteristics",
+         subtitle = "Colored by genre")
+
+songs_in_pca %>%
+    sample_n(3000) %>%
+    ggplot(aes(x = PC1, y = PC3, color = playlist_genre)) +
+    geom_point(size = 1, alpha = 0.5) +
+    labs(color = "genre",
+         title = "PCA of songs by their music characteristics",
+         subtitle = "Colored by genre")
+```
+
+```{r}
+idx <- sample(seq(1, nrow(songs_in_pca_mat)), 5e3)
+songs_tsne <- Rtsne::Rtsne(songs_in_pca_mat[idx, ])
+```
+
+```{r}
+songs_tsne$Y %>%
+    as.data.frame() %>%
+    as_tibble() %>%
+    set_names(c("Z1", "Z2")) %>%
+    add_column(track_id = rownames(songs_in_pca_mat)[idx]) %>%
+    left_join(spotify_songs %>% select(track_id:track_popularity, 
+                                       playlist_genre:playlist_subgenre),
+              by = "track_id") %>%
+    group_by(track_id) %>%
+    filter(n() == 1) %>%
+    ungroup() %>%
+    ggplot(aes(x = Z1, y = Z2, color = playlist_genre)) +
+    geom_point(size = 1, alpha = 0.5) +
+    labs(color = "genre", title = "t-SNE of PCA of song information")
+```
+
+## Model
+
+Random forest to identify the genre and subgenre from the song infromation.
+Using DALEX to standardize and inspect the model.
+
+```{r}
+library(ranger)
+library(rsample)
+```
+
+```{r}
+set.seed(0)
+
+spotify_data <- spotify_songs %>%
+    mutate(genre_subgenre = paste(playlist_genre, "-", playlist_subgenre)) %>%
+    select(track_id, genre_subgenre, danceability:tempo) %>%
+    distinct() %>%
+    group_by(track_id) %>%
+    filter(n() == 1) %>%
+    ungroup()
+
+spotify_data_split <- initial_split(spotify_data %>% select(-track_id), 
+                                    prop = 0.8)
+spotify_data_train <- training(spotify_data_split)
+spotify_data_test <- testing(spotify_data_split)
+```
+
+```{r}
+tic("Training first RF model")
+subgenre_rf <- ranger(genre_subgenre ~ ., 
+                      data = spotify_data_train, 
+                      num.trees = 500, 
+                      mtry = 2,
+                      verbose = FALSE)
+toc()
+```
+
+```{r}
+subgenre_rf$prediction.error
+```
+
+```{r}
+hyper_grid <- expand.grid(
+    mtry = seq(2, ncol(spotify_data) - 2, by = 2),
+    max.depth = seq(5, 20, by = 5),
+    num.trees = seq(500, 1000, by = 200)
+)
+
+# Number of models.
+dim(hyper_grid)
+
+head(hyper_grid)
+```
+
+```{r}
+# tic("Hyperparameter grid search")
+# for (i in 1:nrow(hyper_grid)) {
+#     model <- ranger(
+#         genre_subgenre ~ .,
+#         data = spotify_data_train,
+#         num.trees = hyper_grid$num.trees[[i]],
+#         mtry = hyper_grid$mtry[[i]],
+#         max.depth = hyper_grid$max.depth[[i]],
+#         verbose = FALSE
+#     )
+#     hyper_grid$OOB_error <- model$prediction.error
+# }
+# toc()
+```
+
+```{r}
+# hyper_grid %>%
+#     as_tibble() %>%
+#     janitor::clean_names() %>%
+#     ggplot(aes(x = num_trees, y = oob_error)) +
+#     geom_boxplot(aes(color = num_trees)) +
+#     geom_point()
+```
+
