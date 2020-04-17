@@ -178,34 +178,41 @@ spotify_songs %>%
     skimr::skim()
 ```
 
-    #> Skim summary statistics
-    #>  n obs: 32833 
-    #>  n variables: 12 
-    #> 
-    #> ── Variable type:character ───────────────────────────────────────────────────────────────────────────────
-    #>  variable missing complete     n min max empty n_unique
-    #>  track_id       0    32833 32833  22  22     0    28356
-    #> 
-    #> ── Variable type:numeric ─────────────────────────────────────────────────────────────────────────────────
-    #>          variable missing complete     n    mean    sd        p0     p25
-    #>      acousticness       0    32833 32833   0.18   0.22   0         0.015
-    #>      danceability       0    32833 32833   0.65   0.15   0         0.56 
-    #>            energy       0    32833 32833   0.7    0.18   0.00017   0.58 
-    #>  instrumentalness       0    32833 32833   0.085  0.22   0         0    
-    #>               key       0    32833 32833   5.37   3.61   0         2    
-    #>          liveness       0    32833 32833   0.19   0.15   0         0.093
-    #>          loudness       0    32833 32833  -6.72   2.99 -46.45     -8.17 
-    #>              mode       0    32833 32833   0.57   0.5    0         0    
-    #>        p50      p75   p100     hist
-    #>    0.08      0.26     0.99 ▇▂▁▁▁▁▁▁
-    #>    0.67      0.76     0.98 ▁▁▁▂▆▇▆▂
-    #>    0.72      0.84     1    ▁▁▁▃▅▇▇▆
-    #>    1.6e-05   0.0048   0.99 ▇▁▁▁▁▁▁▁
-    #>    6         9       11    ▇▃▃▃▃▆▃▆
-    #>    0.13      0.25     1    ▇▅▂▁▁▁▁▁
-    #>   -6.17     -4.64     1.27 ▁▁▁▁▁▁▇▃
-    #>    1         1        1    ▆▁▁▁▁▁▁▇
-    #>  [ reached getOption("max.print") -- omitted 3 rows ]
+|                                                  |            |
+| :----------------------------------------------- | :--------- |
+| Name                                             | Piped data |
+| Number of rows                                   | 32833      |
+| Number of columns                                | 12         |
+| \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_   |            |
+| Column type frequency:                           |            |
+| character                                        | 1          |
+| numeric                                          | 11         |
+| \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ |            |
+| Group variables                                  | None       |
+
+Data summary
+
+**Variable type: character**
+
+| skim\_variable | n\_missing | complete\_rate | min | max | empty | n\_unique | whitespace |
+| :------------- | ---------: | -------------: | --: | --: | ----: | --------: | ---------: |
+| track\_id      |          0 |              1 |  22 |  22 |     0 |     28356 |          0 |
+
+**Variable type: numeric**
+
+| skim\_variable   | n\_missing | complete\_rate |   mean |    sd |      p0 |    p25 |    p50 |    p75 |   p100 | hist  |
+| :--------------- | ---------: | -------------: | -----: | ----: | ------: | -----: | -----: | -----: | -----: | :---- |
+| danceability     |          0 |              1 |   0.65 |  0.15 |    0.00 |   0.56 |   0.67 |   0.76 |   0.98 | ▁▁▃▇▃ |
+| energy           |          0 |              1 |   0.70 |  0.18 |    0.00 |   0.58 |   0.72 |   0.84 |   1.00 | ▁▁▅▇▇ |
+| key              |          0 |              1 |   5.37 |  3.61 |    0.00 |   2.00 |   6.00 |   9.00 |  11.00 | ▇▂▅▅▆ |
+| loudness         |          0 |              1 | \-6.72 |  2.99 | \-46.45 | \-8.17 | \-6.17 | \-4.64 |   1.27 | ▁▁▁▂▇ |
+| mode             |          0 |              1 |   0.57 |  0.50 |    0.00 |   0.00 |   1.00 |   1.00 |   1.00 | ▆▁▁▁▇ |
+| speechiness      |          0 |              1 |   0.11 |  0.10 |    0.00 |   0.04 |   0.06 |   0.13 |   0.92 | ▇▂▁▁▁ |
+| acousticness     |          0 |              1 |   0.18 |  0.22 |    0.00 |   0.02 |   0.08 |   0.26 |   0.99 | ▇▂▁▁▁ |
+| instrumentalness |          0 |              1 |   0.08 |  0.22 |    0.00 |   0.00 |   0.00 |   0.00 |   0.99 | ▇▁▁▁▁ |
+| liveness         |          0 |              1 |   0.19 |  0.15 |    0.00 |   0.09 |   0.13 |   0.25 |   1.00 | ▇▃▁▁▁ |
+| valence          |          0 |              1 |   0.51 |  0.23 |    0.00 |   0.33 |   0.51 |   0.69 |   0.99 | ▃▇▇▇▃ |
+| tempo            |          0 |              1 | 120.88 | 26.90 |    0.00 |  99.96 | 121.98 | 133.92 | 239.44 | ▁▂▇▂▁ |
 
 ``` r
 spotify_songs_data <- spotify_songs %>%
@@ -329,95 +336,120 @@ songs_tsne$Y %>%
 
 ## Model
 
-Random forest to identify the genre and subgenre from the song
-infromation. Using DALEX to standardize and inspect the model.
+I would like to get some practice with the ‘tidymodels’ framework, so I
+will use it to prepare the date (using ‘rsample’ and ‘recipes’),
+instantiate a nd train a random forest model (using ‘parsnip’), measure
+the success of the model (using ‘yardstick’), and tune the model’s
+hyperparameters (using ‘tune’).
 
 ``` r
-library(ranger)
-library(rsample)
+library(tidymodels)
 ```
+
+    #> ── Attaching packages ──────────────────────────────────────────────────────────────── tidymodels 0.1.0 ──
+
+    #> ✓ broom     0.5.5      ✓ rsample   0.0.6 
+    #> ✓ dials     0.0.6      ✓ tune      0.1.0 
+    #> ✓ infer     0.5.1      ✓ workflows 0.1.1 
+    #> ✓ parsnip   0.1.0      ✓ yardstick 0.0.6 
+    #> ✓ recipes   0.1.10
+
+### Preparing the data
 
 ``` r
 set.seed(0)
 
 spotify_data <- spotify_songs %>%
-    mutate(genre_subgenre = paste(playlist_genre, "-", playlist_subgenre)) %>%
-    select(track_id, genre_subgenre, danceability:tempo) %>%
+    select(track_id, playlist_genre, danceability:tempo) %>%
     distinct() %>%
     group_by(track_id) %>%
     filter(n() == 1) %>%
     ungroup()
 
 spotify_data_split <- initial_split(spotify_data %>% select(-track_id), 
-                                    prop = 0.8)
+                                    prop = 0.8,
+                                    strata = playlist_genre)
 spotify_data_train <- training(spotify_data_split)
 spotify_data_test <- testing(spotify_data_split)
 ```
 
 ``` r
-tic("Training first RF model")
-subgenre_rf <- ranger(genre_subgenre ~ ., 
-                      data = spotify_data_train, 
-                      num.trees = 500, 
-                      mtry = 2,
-                      verbose = FALSE)
-toc()
+spotify_spec <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
+    step_corr(all_predictors()) %>%
+    prep()
+
+spotify_spec
 ```
 
-    #> Training first RF model: 45.363 sec elapsed
+    #> Data Recipe
+    #> 
+    #> Inputs:
+    #> 
+    #>       role #variables
+    #>    outcome          1
+    #>  predictor         11
+    #> 
+    #> Training data contained 21339 data points and no missing data.
+    #> 
+    #> Operations:
+    #> 
+    #> Correlation filter removed no terms [trained]
+
+### Training a random forest model
 
 ``` r
-subgenre_rf$prediction.error
+spotify_rf <- rand_forest(mtry = 2, trees = 300, min_n = 100) %>%
+    set_mode("classification") %>%
+    set_engine("ranger", max.depth = 10) %>%
+    fit(playlist_genre ~ ., data = juice(spotify_spec))
+
+spotify_rf
 ```
 
-    #> [1] 0.7055029
+    #> parsnip model object
+    #> 
+    #> Fit time:  8.6s 
+    #> Ranger result
+    #> 
+    #> Call:
+    #>  ranger::ranger(formula = formula, data = data, mtry = ~2, num.trees = ~300,      min.node.size = ~100, max.depth = ~10, num.threads = 1, verbose = FALSE,      seed = sample.int(10^5, 1), probability = TRUE) 
+    #> 
+    #> Type:                             Probability estimation 
+    #> Number of trees:                  300 
+    #> Sample size:                      21339 
+    #> Number of independent variables:  11 
+    #> Mtry:                             2 
+    #> Target node size:                 100 
+    #> Variable importance mode:         none 
+    #> Splitrule:                        gini 
+    #> OOB prediction error (Brier s.):  0.4815817
+
+### Assessing the model
 
 ``` r
-hyper_grid <- expand.grid(
-    mtry = seq(2, ncol(spotify_data) - 2, by = 2),
-    max.depth = seq(5, 20, by = 5),
-    num.trees = seq(500, 1000, by = 200)
-)
-
-# Number of models.
-dim(hyper_grid)
+predict(spotify_rf, 
+        spotify_data_train, 
+        type = "prob") %>%
+    bind_cols(spotify_data_train) %>%
+    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
+    autoplot() +
+    ggtitle("Training data")
 ```
 
-    #> [1] 60  3
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
 
 ``` r
-head(hyper_grid)
+predict(spotify_rf, 
+        bake(spotify_spec, spotify_data_test), 
+        type = "prob") %>%
+    bind_cols(bake(spotify_spec, spotify_data_test)) %>%
+    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
+    autoplot() +
+    ggtitle("Testing data")
 ```
 
-    #>   mtry max.depth num.trees
-    #> 1    2         5       500
-    #> 2    4         5       500
-    #> 3    6         5       500
-    #> 4    8         5       500
-    #> 5   10         5       500
-    #> 6    2        10       500
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
 
-``` r
-# tic("Hyperparameter grid search")
-# for (i in 1:nrow(hyper_grid)) {
-#     model <- ranger(
-#         genre_subgenre ~ .,
-#         data = spotify_data_train,
-#         num.trees = hyper_grid$num.trees[[i]],
-#         mtry = hyper_grid$mtry[[i]],
-#         max.depth = hyper_grid$max.depth[[i]],
-#         verbose = FALSE
-#     )
-#     hyper_grid$OOB_error <- model$prediction.error
-# }
-# toc()
-```
+### Tuning the hyperparaters
 
-``` r
-# hyper_grid %>%
-#     as_tibble() %>%
-#     janitor::clean_names() %>%
-#     ggplot(aes(x = num_trees, y = oob_error)) +
-#     geom_boxplot(aes(color = num_trees)) +
-#     geom_point()
-```
+(TODO)

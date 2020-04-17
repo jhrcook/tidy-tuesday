@@ -217,80 +217,73 @@ songs_tsne$Y %>%
 
 ## Model
 
-Random forest to identify the genre and subgenre from the song infromation.
-Using DALEX to standardize and inspect the model.
+I would like to get some practice with the 'tidymodels' framework, so I will use it to prepare the date (using 'rsample' and 'recipes'), instantiate a nd train a random forest model (using 'parsnip'), measure the success of the model (using 'yardstick'), and tune the model's hyperparameters (using 'tune').
 
 ```{r}
-library(ranger)
-library(rsample)
+library(tidymodels)
 ```
+
+### Preparing the data
 
 ```{r}
 set.seed(0)
 
 spotify_data <- spotify_songs %>%
-    mutate(genre_subgenre = paste(playlist_genre, "-", playlist_subgenre)) %>%
-    select(track_id, genre_subgenre, danceability:tempo) %>%
+    select(track_id, playlist_genre, danceability:tempo) %>%
     distinct() %>%
     group_by(track_id) %>%
     filter(n() == 1) %>%
     ungroup()
 
 spotify_data_split <- initial_split(spotify_data %>% select(-track_id), 
-                                    prop = 0.8)
+                                    prop = 0.8,
+                                    strata = playlist_genre)
 spotify_data_train <- training(spotify_data_split)
 spotify_data_test <- testing(spotify_data_split)
 ```
 
 ```{r}
-tic("Training first RF model")
-subgenre_rf <- ranger(genre_subgenre ~ ., 
-                      data = spotify_data_train, 
-                      num.trees = 500, 
-                      mtry = 2,
-                      verbose = FALSE)
-toc()
+spotify_spec <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
+    step_corr(all_predictors()) %>%
+    prep()
+
+spotify_spec
 ```
+
+### Training a random forest model
 
 ```{r}
-subgenre_rf$prediction.error
+spotify_rf <- rand_forest(mtry = 2, trees = 300, min_n = 100) %>%
+    set_mode("classification") %>%
+    set_engine("ranger", max.depth = 10) %>%
+    fit(playlist_genre ~ ., data = juice(spotify_spec))
+
+spotify_rf
 ```
+
+### Assessing the model
 
 ```{r}
-hyper_grid <- expand.grid(
-    mtry = seq(2, ncol(spotify_data) - 2, by = 2),
-    max.depth = seq(5, 20, by = 5),
-    num.trees = seq(500, 1000, by = 200)
-)
-
-# Number of models.
-dim(hyper_grid)
-
-head(hyper_grid)
+predict(spotify_rf, 
+        spotify_data_train, 
+        type = "prob") %>%
+    bind_cols(spotify_data_train) %>%
+    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
+    autoplot() +
+    ggtitle("Training data")
 ```
+
 
 ```{r}
-# tic("Hyperparameter grid search")
-# for (i in 1:nrow(hyper_grid)) {
-#     model <- ranger(
-#         genre_subgenre ~ .,
-#         data = spotify_data_train,
-#         num.trees = hyper_grid$num.trees[[i]],
-#         mtry = hyper_grid$mtry[[i]],
-#         max.depth = hyper_grid$max.depth[[i]],
-#         verbose = FALSE
-#     )
-#     hyper_grid$OOB_error <- model$prediction.error
-# }
-# toc()
+predict(spotify_rf, 
+        bake(spotify_spec, spotify_data_test), 
+        type = "prob") %>%
+    bind_cols(bake(spotify_spec, spotify_data_test)) %>%
+    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
+    autoplot() +
+    ggtitle("Testing data")
 ```
 
-```{r}
-# hyper_grid %>%
-#     as_tibble() %>%
-#     janitor::clean_names() %>%
-#     ggplot(aes(x = num_trees, y = oob_error)) +
-#     geom_boxplot(aes(color = num_trees)) +
-#     geom_point()
-```
+### Tuning the hyperparaters
 
+(TODO)
