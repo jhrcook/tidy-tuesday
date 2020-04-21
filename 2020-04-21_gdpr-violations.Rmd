@@ -1,0 +1,264 @@
+---
+title: "GDPR Violations"
+author: "Joshua Cook"
+date: "4/21/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(magrittr)
+library(tidyverse)
+
+theme_set(theme_minimal())
+
+set.seed(0)
+```
+
+## Data
+
+```{r cars}
+gdpr_violations <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-21/gdpr_violations.tsv')
+```
+```{r}
+gdpr_violations %<>%
+    janitor::clean_names() %>% 
+    select(-picture, -source) %>%
+    mutate(date = ifelse(date == "01/01/1970", NA_character_, date),
+           date = lubridate::mdy(date)) %>%
+    rename(country = name)
+```
+
+```{r}
+gdpr_violations
+```
+
+## EDA
+
+```{r}
+gdpr_violations %>%
+    mutate(country = fct_reorder(country, -price, sum)) %>%
+    ggplot(aes(x = price, y = country)) +
+    geom_col(aes(fill = price), position = "stack") +
+    scale_fill_distiller(type = "seq", palette = "RdPu", guide = NULL) +
+    scale_x_continuous(expand = c(0, 0)) +
+    labs(x = "GDPR fine",
+         y = "Country",
+         title = "Total GDPR fines accrued per country")
+```
+
+```{r}
+gdpr_violations %>%
+    mutate(lbl = paste0(country, "___", id),
+           lbl = fct_reorder(lbl, -price)) %>%
+    top_n(n = 20, wt = price) %>%
+    ggplot(aes(x = price, y = lbl)) +
+    geom_col(aes(fill = price), position = "stack") +
+    scale_fill_distiller(type = "seq", palette = "RdPu", guide = NULL) +
+    scale_y_discrete(labels = function(x) { str_remove(x, "___.*$") }) +
+    scale_x_continuous(expand = c(0, 700000)) +
+    labs(x = "GDPR fine",
+         y = "Individual fines labeled by country",
+         title = "Top 20 fines from GDPR violations")
+```
+
+```{r}
+gdpr_violations %>%
+    filter(!is.na(date)) %>%
+    mutate(price_log = log10(price)) %>%
+    ggplot(aes(x = date, y = price_log)) +
+    geom_point(aes(color = country)) +
+    scale_x_date() +
+    scale_y_continuous(labels = function(x) { 10^x }) +
+    labs(x = "date of fine",
+         y = "price of fine (log-scale)",
+         title = "GDPR fines over time")
+```
+
+
+## Text Analysis
+
+[Introduction to tidytext](https://cran.r-project.org/web/packages/tidytext/vignettes/tidytext.html)
+
+```{r}
+library(tidytext)
+```
+
+```{r}
+gdpr_words <- gdpr_violations %>%
+    mutate(summary = str_replace(summary, "\\&\\#8217\\;", "'")) %>%
+    select(id, summary) %>%
+    unnest_tokens(output = "word", input = summary)
+```
+
+```{r}
+gdpr_words %>% 
+    anti_join(stop_words, by = "word") %>%
+    count(word, sort = TRUE) %>%
+    top_n(20, wt = n) %>%
+    mutate(word = fct_inorder(word)) %>%
+    ggplot(aes(x = n, y = word)) +
+    geom_col(aes(fill = n)) +
+    scale_fill_distiller(type = "seq", palette = "GnBu", guide = NULL, direction = 1) +
+    scale_x_continuous(expand = c(0, 0)) +
+    labs(x = "word count",
+         y = NULL,
+         title = "The most frequent words used in GDPR violoation summaries")
+```
+
+### Topic Modeling
+
+```{r}
+library(topicmodels)
+library(ldatuning)
+```
+
+```{r}
+gdpr_word_counts <- gdpr_words %>%
+    count(id, word) %>%
+    anti_join(stop_words, by = "word")
+```
+
+```{r}
+gdpr_dtm <- cast_dtm(gdpr_word_counts, document = id, term = word, value = n)
+gdpr_dtm
+```
+
+```{r}
+gdpr_lda_ksearch <- FindTopicsNumber(
+    gdpr_dtm,
+    topics = seq(from = 2, to = 100, by = 3),
+    metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+    method = "Gibbs",
+    control = list(seed = 0),
+    mc.cores = 4L,
+    verbose = TRUE
+)
+
+as_tibble(gdpr_lda_ksearch)
+```
+
+```{r}
+maximize_metric <- c("Deveaud2014", "Griffiths2004")
+
+gdpr_lda_ksearch %>%
+    pivot_longer(-topics, names_to = "metric", values_to = "value") %>%
+    group_by(metric) %>%
+    mutate(value = scales::rescale(value, to = c(0, 1))) %>%
+    ungroup() %>%
+    mutate(max_or_min = ifelse(metric %in% maximize_metric, 
+                               "Maximize", "Minimize")) %>%
+    ggplot(aes(x = topics, y = value, color = metric, group = metric)) +
+    facet_wrap(max_or_min ~ ., ncol = 1) +
+    geom_line(size = 1, alpha = 0.5) +
+    geom_point(size = 3) +
+    scale_color_brewer(type = "qual", palette = "Set2") +
+    theme(strip.text = element_text(face = "bold")) +
+    labs(x = "number of topics (k)",
+         y = NULL,
+         title = "LDA Topic Model fit metrics over different number of topics")
+```
+
+```{r}
+gdpr_lda_ksearch2 <- FindTopicsNumber(
+    gdpr_dtm,
+    topics = seq(from = 2, to = 25, by = 1),
+    metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+    method = "Gibbs",
+    control = list(seed = 0),
+    mc.cores = 4L,
+    verbose = TRUE
+)
+
+gdpr_lda_ksearch2 %>%
+    pivot_longer(-topics, names_to = "metric", values_to = "value") %>%
+    group_by(metric) %>%
+    mutate(value = scales::rescale(value, to = c(0, 1))) %>%
+    ungroup() %>%
+    mutate(max_or_min = ifelse(metric %in% maximize_metric, 
+                               "Maximize", "Minimize")) %>%
+    ggplot(aes(x = topics, y = value, color = metric, group = metric)) +
+    facet_wrap(max_or_min ~ ., ncol = 1) +
+    geom_line(size = 1, alpha = 0.5) +
+    geom_point(size = 3) +
+    geom_text(aes(label = topics), color = "grey25") +
+    scale_color_brewer(type = "qual", palette = "Set2") +
+    theme(strip.text = element_text(face = "bold")) +
+    labs(x = "number of topics (k)",
+         y = NULL,
+         title = "LDA Topic Model fit metrics over different number of topics")
+```
+
+```{r}
+gdpr_lda_k <- 13
+gdpr_lda <- topicmodels::LDA(gdpr_dtm, k = gdpr_lda_k, control = list(seed = 0))
+gdpr_lda
+glance(gdpr_lda)
+perplexity(gdpr_lda)
+```
+
+```{r}
+gdpr_lda_tidy <- tidy(gdpr_lda)
+gdpr_lda_tidy
+```
+
+```{r}
+gdpr_lda_tidy %>%
+    group_by(topic) %>%
+    top_n(5, wt = beta) %>%
+    ungroup() %>%
+    mutate(term = reorder_within(term, beta, topic)) %>%
+    ggplot(aes(x = beta, y = term)) +
+    facet_wrap(~ topic, scales = "free_y") +
+    geom_col() +
+    scale_y_reordered()
+```
+
+```{r}
+set.seed(0)
+topic_pal <- randomcoloR::distinctColorPalette(gdpr_lda_k)
+names(topic_pal) <- seq(1, gdpr_lda_k)
+
+gdpr_lda_tidy %>%
+    group_by(topic) %>%
+    top_n(5, wt = beta) %>%
+    ungroup() %>%
+    mutate(term = fct_reorder(term, beta, sum),
+           topic = factor(topic)) %>%
+    ggplot(aes(x = beta, y = term)) +
+    geom_col(aes(fill = topic)) +
+    scale_fill_manual(values = topic_pal) +
+    theme(panel.grid.major.y = element_blank()) +
+    labs(x = "LDA topic model beta",
+         y = "GDPR terms",
+         title = "Latent Dirichlet Allocation topic model for GDPR summaries")
+```
+
+```{r}
+gdpr_lda_gamma <- tidy(gdpr_lda, matrix = "gamma")
+gdpr_lda_gamma
+```
+
+```{r}
+gdpr_lda_gamma_df <- gdpr_lda_gamma %>%
+    pivot_wider(document, names_from = topic, values_from = gamma) %>%
+    as.data.frame() %>%
+    column_to_rownames("document")
+
+pheatmap::pheatmap(gdpr_lda_gamma_df, 
+                   border_color = NA,
+                   show_rownames = FALSE,
+                   angle_col = 0,
+                   main = "Clustering documents by topic")
+```
+
+```{r}
+gdpr_fines_topics <- gdpr_lda_gamma %>%
+    group_by(document) %>%
+    top_n(1, wt = gamma) %>%
+    ungroup()
+
+gdpr_fines_topics %>%
+    count(topic)
+```
