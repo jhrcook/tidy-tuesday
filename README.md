@@ -91,8 +91,10 @@ by Alex Ovechkin.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-21/readme.md)
 | [analysis](2020-01-21_spotify-songs.md)
 
-I used a random forrest model to predict the genre of a playlist using
-musical features of their songs. (I want try to further tune this model,
-though.)
+I used a random forest model to predict the genre of a playlist using
+musical features of their songs. I was able to play around with the
+‘tidymodels’ framework.
 
 ![](./2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-13-1.png)
+
+![](./2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-22-1.png)

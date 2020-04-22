@@ -7,10 +7,12 @@ Joshua Cook
 knitr::opts_chunk$set(echo = TRUE, comment = "#>")
 
 library(conflicted)
+library(patchwork)
 library(GGally)
 library(factoextra)
 library(tictoc)
 library(lubridate)
+library(vip)
 library(magrittr)
 library(tidyverse)
 
@@ -342,11 +344,15 @@ instantiate a nd train a random forest model (using ‘parsnip’), measure
 the success of the model (using ‘yardstick’), and tune the model’s
 hyperparameters (using ‘tune’).
 
+For practicality reasons (as my goal is to practice using the
+‘tidymodels’ framework, not replicate Spotify’s data science team), I
+will restrict the data two just predicting between 3 groups
+
 ``` r
 library(tidymodels)
 ```
 
-    #> ── Attaching packages ──────────────────────────────────────────────────────────────── tidymodels 0.1.0 ──
+    #> ── Attaching packages ─────────────────────────────────────────────────── tidymodels 0.1.0 ──
 
     #> ✓ broom     0.5.5      ✓ rsample   0.0.6 
     #> ✓ dials     0.0.6      ✓ tune      0.1.0 
@@ -360,13 +366,17 @@ library(tidymodels)
 set.seed(0)
 
 spotify_data <- spotify_songs %>%
+    filter(playlist_genre %in% c("rock", "rap", "latin")) %>%
     select(track_id, playlist_genre, danceability:tempo) %>%
     distinct() %>%
     group_by(track_id) %>%
     filter(n() == 1) %>%
+    ungroup() %>% 
+    group_by(playlist_genre) %>%
+    sample_frac(0.7) %>%
     ungroup()
 
-spotify_data_split <- initial_split(spotify_data %>% select(-track_id), 
+spotify_data_split <- initial_split(spotify_data, 
                                     prop = 0.8,
                                     strata = playlist_genre)
 spotify_data_train <- training(spotify_data_split)
@@ -374,82 +384,273 @@ spotify_data_test <- testing(spotify_data_split)
 ```
 
 ``` r
-spotify_spec <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
-    step_corr(all_predictors()) %>%
-    prep()
+set.seed(0)
+metric_pal <- randomcoloR::distinctColorPalette(11)
 
-spotify_spec
+spotify_data_train %>%
+    select(-track_id) %>%
+    pivot_longer(-playlist_genre, names_to = "metric", values_to = "value") %>%
+    group_by(playlist_genre, metric) %>%
+    summarise(avg_value = mean(value)) %>%
+    group_by(metric) %>%
+    mutate(avg_value = scales::rescale(avg_value, to = c(0, 1))) %>%
+    ungroup() %>%
+    ggplot(aes(x = avg_value, y = metric)) +
+    facet_wrap(~ playlist_genre, nrow = 1) +
+    geom_col(aes(fill = metric)) +
+    scale_fill_manual(values = metric_pal, guide = NULL) +
+    theme(
+        panel.grid.major.y = element_blank()
+    ) +
+    labs(x = "average value", 
+         y = NULL,
+         title = "Values of song metrics across genres")
 ```
 
-    #> Data Recipe
-    #> 
-    #> Inputs:
-    #> 
-    #>       role #variables
-    #>    outcome          1
-    #>  predictor         11
-    #> 
-    #> Training data contained 21339 data points and no missing data.
-    #> 
-    #> Operations:
-    #> 
-    #> Correlation filter removed no terms [trained]
-
-### Training a random forest model
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
 ``` r
-spotify_rf <- rand_forest(mtry = 2, trees = 300, min_n = 100) %>%
-    set_mode("classification") %>%
-    set_engine("ranger", max.depth = 10) %>%
-    fit(playlist_genre ~ ., data = juice(spotify_spec))
+spotify_recipe <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
+    update_role(track_id, new_role = "ID") %>%
+    step_corr(all_predictors())
 
+spotify_prep <- prep(spotify_recipe)
+spotify_juiced <- juice(spotify_prep)
+
+spotify_juiced
+```
+
+    #> # A tibble: 7,917 x 13
+    #>    track_id danceability energy   key loudness  mode speechiness acousticness
+    #>    <fct>           <dbl>  <dbl> <dbl>    <dbl> <dbl>       <dbl>        <dbl>
+    #>  1 555ix1g…        0.566  0.666     5    -5.74     0      0.163      0.0161  
+    #>  2 6HTJZ0T…        0.805  0.858     0    -3.07     1      0.105      0.194   
+    #>  3 7H4XjkO…        0.695  0.755     7    -6.87     0      0.0386     0.134   
+    #>  4 62E8JJR…        0.658  0.863     7    -3.58     0      0.0352     0.287   
+    #>  5 2RruTqd…        0.802  0.611     8    -7.52     1      0.0601     0.356   
+    #>  6 7GsMKEG…        0.667  0.867    11    -5.56     0      0.0466     0.046   
+    #>  7 0gT1wHT…        0.589  0.838     5    -4.07     0      0.0457     0.00807 
+    #>  8 4mNOezZ…        0.654  0.803    10    -5.14     1      0.0544     0.254   
+    #>  9 1xh59Kp…        0.399  0.53     10    -7.18     0      0.0532     0.479   
+    #> 10 5tXg9mq…        0.712  0.61      6    -9.33     0      0.0376     0.000892
+    #> # … with 7,907 more rows, and 5 more variables: instrumentalness <dbl>,
+    #> #   liveness <dbl>, valence <dbl>, tempo <dbl>, playlist_genre <fct>
+
+``` r
+spotify_tune_spec <- rand_forest(
+    mtry = tune(),
+    trees = 500,
+    min_n = tune()
+) %>%
+    set_mode("classification") %>%
+    set_engine("ranger")
+```
+
+``` r
+spotify_workflow <- workflow() %>%
+    add_recipe(spotify_recipe) %>%
+    add_model(spotify_tune_spec)
+```
+
+``` r
+set.seed(0)
+spotify_training_folds <- vfold_cv(spotify_data_train)
+spotify_training_folds
+```
+
+    #> #  10-fold cross-validation 
+    #> # A tibble: 10 x 2
+    #>    splits             id    
+    #>    <named list>       <chr> 
+    #>  1 <split [7.1K/792]> Fold01
+    #>  2 <split [7.1K/792]> Fold02
+    #>  3 <split [7.1K/792]> Fold03
+    #>  4 <split [7.1K/792]> Fold04
+    #>  5 <split [7.1K/792]> Fold05
+    #>  6 <split [7.1K/792]> Fold06
+    #>  7 <split [7.1K/792]> Fold07
+    #>  8 <split [7.1K/791]> Fold08
+    #>  9 <split [7.1K/791]> Fold09
+    #> 10 <split [7.1K/791]> Fold10
+
+``` r
+doParallel::registerDoParallel()
+
+set.seed(0)
+spotify_tune_1 <- tune_grid(
+    spotify_workflow,
+    resamples = spotify_training_folds,
+    grid = 20
+)
+```
+
+    #> i Creating pre-processing data to finalize unknown parameter: mtry
+
+``` r
+spotify_tune_1
+```
+
+    #> #  10-fold cross-validation 
+    #> # A tibble: 10 x 4
+    #>    splits             id     .metrics          .notes          
+    #>    <list>             <chr>  <list>            <list>          
+    #>  1 <split [7.1K/792]> Fold01 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  2 <split [7.1K/792]> Fold02 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  3 <split [7.1K/792]> Fold03 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  4 <split [7.1K/792]> Fold04 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  5 <split [7.1K/792]> Fold05 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  6 <split [7.1K/792]> Fold06 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  7 <split [7.1K/792]> Fold07 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  8 <split [7.1K/791]> Fold08 <tibble [40 × 5]> <tibble [0 × 1]>
+    #>  9 <split [7.1K/791]> Fold09 <tibble [40 × 5]> <tibble [0 × 1]>
+    #> 10 <split [7.1K/791]> Fold10 <tibble [40 × 5]> <tibble [0 × 1]>
+
+``` r
+p1 <- spotify_tune_1 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    ggplot(aes(x = mtry, y = min_n)) +
+    geom_point(aes(color = mean, size = mean)) +
+    scale_color_gradient2(low = "blue", high = "tomato", midpoint = 0.9) +
+    scale_size_continuous(guide = NULL) +
+    labs(title = "ROC AUC variation over the hyperparameter space")
+
+p2 <- spotify_tune_1 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    select(mtry, min_n, mean) %>%
+    pivot_longer(-mean, names_to = "parameter", values_to = "value") %>%
+    ggplot(aes(x = value, y = mean)) +
+    facet_wrap(~ parameter, nrow = 1, scales = "free") +
+    geom_point(aes(color = parameter), size = 2) +
+    geom_smooth(aes(group = parameter), 
+                method = "loess", formula = "y ~ x", 
+                color = "grey30", lty = 2, se = FALSE) +
+    scale_color_brewer(type = "qual", palette = "Set2", guide = NULL)
+
+ p1 / p2
+```
+
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
+
+``` r
+spotify_tune_grid <- grid_regular(
+    mtry(range = c(2, 6)),
+    min_n(range = c(5, 15)),
+    levels = 5
+)
+
+spotify_tune_grid
+```
+
+    #> # A tibble: 25 x 2
+    #>     mtry min_n
+    #>    <int> <int>
+    #>  1     2     5
+    #>  2     3     5
+    #>  3     4     5
+    #>  4     5     5
+    #>  5     6     5
+    #>  6     2     7
+    #>  7     3     7
+    #>  8     4     7
+    #>  9     5     7
+    #> 10     6     7
+    #> # … with 15 more rows
+
+``` r
+set.seed(0)
+
+spotify_tune_2 <- tune_grid(
+    spotify_workflow,
+    resamples = spotify_training_folds,
+    grid = spotify_tune_grid
+)
+```
+
+    #> i Creating pre-processing data to finalize unknown parameter: mtry
+
+``` r
+spotify_tune_2
+```
+
+    #> #  10-fold cross-validation 
+    #> # A tibble: 10 x 4
+    #>    splits             id     .metrics          .notes          
+    #>    <list>             <chr>  <list>            <list>          
+    #>  1 <split [7.1K/792]> Fold01 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  2 <split [7.1K/792]> Fold02 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  3 <split [7.1K/792]> Fold03 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  4 <split [7.1K/792]> Fold04 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  5 <split [7.1K/792]> Fold05 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  6 <split [7.1K/792]> Fold06 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  7 <split [7.1K/792]> Fold07 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  8 <split [7.1K/791]> Fold08 <tibble [50 × 5]> <tibble [0 × 1]>
+    #>  9 <split [7.1K/791]> Fold09 <tibble [50 × 5]> <tibble [0 × 1]>
+    #> 10 <split [7.1K/791]> Fold10 <tibble [50 × 5]> <tibble [0 × 1]>
+
+``` r
+spotify_tune_2 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    mutate(min_n = factor(min_n)) %>%
+    ggplot(aes(mtry, mean, color = min_n)) +
+    geom_line(alpha = 0.5, size = 1.5) +
+    geom_point() +
+    labs(y = "AUC")
+```
+
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
+
+``` r
+best_auc <- select_best(spotify_tune_2, "roc_auc")
+spotify_rf <- finalize_model(spotify_tune_spec, best_auc)
 spotify_rf
 ```
 
-    #> parsnip model object
+    #> Random Forest Model Specification (classification)
     #> 
-    #> Fit time:  8.6s 
-    #> Ranger result
+    #> Main Arguments:
+    #>   mtry = 2
+    #>   trees = 500
+    #>   min_n = 5
     #> 
-    #> Call:
-    #>  ranger::ranger(formula = formula, data = data, mtry = ~2, num.trees = ~300,      min.node.size = ~100, max.depth = ~10, num.threads = 1, verbose = FALSE,      seed = sample.int(10^5, 1), probability = TRUE) 
-    #> 
-    #> Type:                             Probability estimation 
-    #> Number of trees:                  300 
-    #> Sample size:                      21339 
-    #> Number of independent variables:  11 
-    #> Mtry:                             2 
-    #> Target node size:                 100 
-    #> Variable importance mode:         none 
-    #> Splitrule:                        gini 
-    #> OOB prediction error (Brier s.):  0.4815817
-
-### Assessing the model
+    #> Computational engine: ranger
 
 ``` r
-predict(spotify_rf, 
-        spotify_data_train, 
-        type = "prob") %>%
-    bind_cols(spotify_data_train) %>%
-    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
-    autoplot() +
-    ggtitle("Training data")
+spotify_rf %>%
+    set_engine("ranger", importance = "permutation") %>%
+    fit(playlist_genre ~ ., 
+        data = select(spotify_juiced, -track_id)) %>%
+    vip(geom = "point")
 ```
 
-![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
 
 ``` r
-predict(spotify_rf, 
-        bake(spotify_spec, spotify_data_test), 
-        type = "prob") %>%
-    bind_cols(bake(spotify_spec, spotify_data_test)) %>%
-    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
-    autoplot() +
-    ggtitle("Testing data")
+spotify_workflow_final <- workflow() %>%
+    add_recipe(spotify_recipe) %>%
+    add_model(spotify_rf)
+
+spotify_random_forest <- last_fit(spotify_workflow_final, spotify_data_split)
 ```
 
-![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+``` r
+spotify_random_forest %>%
+    collect_metrics()
+```
 
-### Tuning the hyperparaters
+    #> # A tibble: 2 x 3
+    #>   .metric  .estimator .estimate
+    #>   <chr>    <chr>          <dbl>
+    #> 1 accuracy multiclass     0.763
+    #> 2 roc_auc  hand_till      0.905
 
-(TODO)
+``` r
+spotify_random_forest %>%
+    collect_predictions() %>%
+    roc_curve(playlist_genre, .pred_latin:.pred_rock) %>%
+    autoplot()
+```
+
+![](2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->

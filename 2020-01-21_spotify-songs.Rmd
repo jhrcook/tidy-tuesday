@@ -9,10 +9,12 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE, comment = "#>")
 
 library(conflicted)
+library(patchwork)
 library(GGally)
 library(factoextra)
 library(tictoc)
 library(lubridate)
+library(vip)
 library(magrittr)
 library(tidyverse)
 
@@ -219,6 +221,9 @@ songs_tsne$Y %>%
 
 I would like to get some practice with the 'tidymodels' framework, so I will use it to prepare the date (using 'rsample' and 'recipes'), instantiate a nd train a random forest model (using 'parsnip'), measure the success of the model (using 'yardstick'), and tune the model's hyperparameters (using 'tune').
 
+
+For practicality reasons (as my goal is to practice using the 'tidymodels' framework, not replicate Spotify's data science team), I will restrict the data two just predicting between 3 groups
+
 ```{r}
 library(tidymodels)
 ```
@@ -229,13 +234,17 @@ library(tidymodels)
 set.seed(0)
 
 spotify_data <- spotify_songs %>%
+    filter(playlist_genre %in% c("rock", "rap", "latin")) %>%
     select(track_id, playlist_genre, danceability:tempo) %>%
     distinct() %>%
     group_by(track_id) %>%
     filter(n() == 1) %>%
+    ungroup() %>% 
+    group_by(playlist_genre) %>%
+    sample_frac(0.7) %>%
     ungroup()
 
-spotify_data_split <- initial_split(spotify_data %>% select(-track_id), 
+spotify_data_split <- initial_split(spotify_data, 
                                     prop = 0.8,
                                     strata = playlist_genre)
 spotify_data_train <- training(spotify_data_split)
@@ -243,47 +252,169 @@ spotify_data_test <- testing(spotify_data_split)
 ```
 
 ```{r}
-spotify_spec <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
-    step_corr(all_predictors()) %>%
-    prep()
+set.seed(0)
+metric_pal <- randomcoloR::distinctColorPalette(11)
 
-spotify_spec
+spotify_data_train %>%
+    select(-track_id) %>%
+    pivot_longer(-playlist_genre, names_to = "metric", values_to = "value") %>%
+    group_by(playlist_genre, metric) %>%
+    summarise(avg_value = mean(value)) %>%
+    group_by(metric) %>%
+    mutate(avg_value = scales::rescale(avg_value, to = c(0, 1))) %>%
+    ungroup() %>%
+    ggplot(aes(x = avg_value, y = metric)) +
+    facet_wrap(~ playlist_genre, nrow = 1) +
+    geom_col(aes(fill = metric)) +
+    scale_fill_manual(values = metric_pal, guide = NULL) +
+    theme(
+        panel.grid.major.y = element_blank()
+    ) +
+    labs(x = "average value", 
+         y = NULL,
+         title = "Values of song metrics across genres")
 ```
 
-### Training a random forest model
 
 ```{r}
-spotify_rf <- rand_forest(mtry = 2, trees = 300, min_n = 100) %>%
-    set_mode("classification") %>%
-    set_engine("ranger", max.depth = 10) %>%
-    fit(playlist_genre ~ ., data = juice(spotify_spec))
+spotify_recipe <- recipe(playlist_genre ~ ., data = spotify_data_train) %>%
+    update_role(track_id, new_role = "ID") %>%
+    step_corr(all_predictors())
 
+spotify_prep <- prep(spotify_recipe)
+spotify_juiced <- juice(spotify_prep)
+
+spotify_juiced
+```
+
+```{r}
+spotify_tune_spec <- rand_forest(
+    mtry = tune(),
+    trees = 500,
+    min_n = tune()
+) %>%
+    set_mode("classification") %>%
+    set_engine("ranger")
+```
+
+```{r}
+spotify_workflow <- workflow() %>%
+    add_recipe(spotify_recipe) %>%
+    add_model(spotify_tune_spec)
+```
+
+
+
+```{r}
+set.seed(0)
+spotify_training_folds <- vfold_cv(spotify_data_train)
+spotify_training_folds
+```
+
+```{r}
+doParallel::registerDoParallel()
+
+set.seed(0)
+spotify_tune_1 <- tune_grid(
+    spotify_workflow,
+    resamples = spotify_training_folds,
+    grid = 20
+)
+
+spotify_tune_1
+```
+
+```{r}
+p1 <- spotify_tune_1 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    ggplot(aes(x = mtry, y = min_n)) +
+    geom_point(aes(color = mean, size = mean)) +
+    scale_color_gradient2(low = "blue", high = "tomato", midpoint = 0.9) +
+    scale_size_continuous(guide = NULL) +
+    labs(title = "ROC AUC variation over the hyperparameter space")
+
+p2 <- spotify_tune_1 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    select(mtry, min_n, mean) %>%
+    pivot_longer(-mean, names_to = "parameter", values_to = "value") %>%
+    ggplot(aes(x = value, y = mean)) +
+    facet_wrap(~ parameter, nrow = 1, scales = "free") +
+    geom_point(aes(color = parameter), size = 2) +
+    geom_smooth(aes(group = parameter), 
+                method = "loess", formula = "y ~ x", 
+                color = "grey30", lty = 2, se = FALSE) +
+    scale_color_brewer(type = "qual", palette = "Set2", guide = NULL)
+
+ p1 / p2
+```
+
+```{r}
+spotify_tune_grid <- grid_regular(
+    mtry(range = c(2, 6)),
+    min_n(range = c(5, 15)),
+    levels = 5
+)
+
+spotify_tune_grid
+```
+
+```{r}
+set.seed(0)
+
+spotify_tune_2 <- tune_grid(
+    spotify_workflow,
+    resamples = spotify_training_folds,
+    grid = spotify_tune_grid
+)
+
+spotify_tune_2
+```
+
+```{r}
+spotify_tune_2 %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    mutate(min_n = factor(min_n)) %>%
+    ggplot(aes(mtry, mean, color = min_n)) +
+    geom_line(alpha = 0.5, size = 1.5) +
+    geom_point() +
+    labs(y = "AUC")
+```
+
+```{r}
+best_auc <- select_best(spotify_tune_2, "roc_auc")
+spotify_rf <- finalize_model(spotify_tune_spec, best_auc)
 spotify_rf
 ```
 
-### Assessing the model
+```{r}
+spotify_rf %>%
+    set_engine("ranger", importance = "permutation") %>%
+    fit(playlist_genre ~ ., 
+        data = select(spotify_juiced, -track_id)) %>%
+    vip(geom = "point")
+```
 
 ```{r}
-predict(spotify_rf, 
-        spotify_data_train, 
-        type = "prob") %>%
-    bind_cols(spotify_data_train) %>%
-    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
-    autoplot() +
-    ggtitle("Training data")
+spotify_workflow_final <- workflow() %>%
+    add_recipe(spotify_recipe) %>%
+    add_model(spotify_rf)
+
+spotify_random_forest <- last_fit(spotify_workflow_final, spotify_data_split)
 ```
 
 
 ```{r}
-predict(spotify_rf, 
-        bake(spotify_spec, spotify_data_test), 
-        type = "prob") %>%
-    bind_cols(bake(spotify_spec, spotify_data_test)) %>%
-    roc_curve(factor(playlist_genre), .pred_edm:.pred_rock) %>%
-    autoplot() +
-    ggtitle("Testing data")
+spotify_random_forest %>%
+    collect_metrics()
 ```
 
-### Tuning the hyperparaters
+```{r}
+spotify_random_forest %>%
+    collect_predictions() %>%
+    roc_curve(playlist_genre, .pred_latin:.pred_rock) %>%
+    autoplot()
+```
 
-(TODO)
