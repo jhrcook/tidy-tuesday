@@ -1,0 +1,174 @@
+---
+title: "Big mtcars"
+author: "Joshua Cook"
+date: "10/15/2020"
+output: github_document
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(GGally)
+library(magrittr)
+library(tidyverse)
+
+theme_set(theme_minimal())
+
+set.seed(0)
+```
+
+## Data
+
+Data dictionary: https://www.fueleconomy.gov/feg/ws/index.shtml#fuelType1
+
+```{r}
+big_epa_cars <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-15/big_epa_cars.csv") %>%
+    janitor::clean_names()
+```
+
+```{r}
+big_cars <- big_epa_cars %>%
+    filter(is.na(fuel_type2)) %>%
+    select(id, make, model, year, eng_id, barrels08, city08, highway08, 
+           co2, cylinders, displ, drive, fuel_cost08) %>%
+    distinct() %>%
+    set_names(c("id", "mfr", "model", "year", "engine_id", "barrels", 
+                "city_mpg", "highway_mpg", "co2", "cylinders", "displ", 
+                "drive", "fuel_cost"))
+
+big_cars
+```
+
+## EDA
+
+```{r, fig.width=5, fig.height=5}
+big_cars %>%
+    sample_n(300) %>%
+    select(barrels:fuel_cost) %>%
+    GGally::ggscatmat(alpha = 0.6)
+```
+
+The `co2` column will be removed because is missing a lot of data.
+
+```{r}
+big_cars %>% 
+    filter(co2 == -1) %>% 
+    sample_n(10) %>%
+    select(mfr, model)
+```
+
+The `fuel_cost` and `barrels` columns are highly correlated, and the `city_mpg` and `highway_mpg` are highly correlated.
+Therefore, we can remove one column of each pair.
+
+```{r}
+big_cars %<>%
+    select(-fuel_cost, -city_mpg, -co2)
+```
+
+```{r}
+big_cars %>%
+    count(drive)
+
+big_cars %<>%
+    filter(!is.na(drive)) %>%
+    mutate(drive = case_when(
+        drive == "4-Wheel or All-Wheel Drive" ~ "4-Wheel Drive",
+        drive == "All-Wheel Drive" ~ "4-Wheel Drive",
+        drive == "Part-time 4-Wheel Drive" ~ "4-Wheel Drive",
+        drive == "Front-Wheel Drive" ~ "2-Wheel Drive",
+        drive == "Rear-Wheel Drive" ~ "2-Wheel Drive",
+        drive == "Front-Wheel Drive" ~ "2-Wheel Drive",
+        TRUE ~ drive
+    ))
+
+big_cars %>%
+    count(drive)
+```
+
+Remove outliers of `highway_mpg`.
+
+```{r}
+big_cars %>%
+    filter(highway_mpg <= 50) %>%
+    ggplot(aes(x = highway_mpg)) +
+    geom_density() +
+    labs(x = "highway MPG",
+         y = "density")
+```
+
+```{r}
+big_cars %<>% filter(highway_mpg <= 50)
+```
+
+## Modeling
+
+### Standard linear model
+
+```{r}
+lm_model <- lm(highway_mpg ~ cylinders + displ + drive,
+               data = big_cars)
+
+summary(lm_model)
+```
+
+### Bayesian method
+
+```{r}
+library(rstanarm)
+library(bayestestR)
+library(insight)
+library(see)
+```
+
+```{r}
+stan_model <- stan_glm(highway_mpg ~ cylinders + displ + drive,
+                       data = big_cars)
+```
+
+```{r}
+posteriors <- insight::get_parameters(stan_model) %>%
+    as_tibble() %>%
+    janitor::clean_names()
+posteriors
+```
+
+```{r}
+posteriors %>%
+    pivot_longer(intercept:drive4_wheel_drive) %>%
+    ggplot(aes(x = value)) +
+    facet_wrap(~ name, scales = "free") +
+    geom_density() +
+    scale_y_continuous(expand = c(0, 0))
+```
+
+```{r}
+bayestestR::describe_posterior(stan_model)
+```
+
+```{r}
+plot(stan_model)
+```
+
+```{r}
+plot(point_estimate(posteriors$cylinders))
+```
+
+```{r}
+plot(rope(posteriors$cylinders))
+rope(posteriors$cylinders)
+```
+
+```{r}
+plot(rope(posteriors$displ))
+rope(posteriors$displ)
+```
+
+
+```{r}
+plot(hdi(posteriors$cylinders))
+```
+
+```{r}
+plot(p_direction(posteriors$cylinders))
+p_direction(posteriors$cylinders)
+```

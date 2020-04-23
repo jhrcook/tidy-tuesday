@@ -87,3 +87,12 @@ I was able to play around with the 'tidymodels' framework.
 ![](./2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-13-1.png)
 
 ![](./2020-01-21_spotify-songs_files/figure-gfm/unnamed-chunk-22-1.png)
+
+**October 15, 2019**
+
+[data](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-10-15) | [analysis](2019-10-15_big-mtcars.md)
+
+I chose this old TidyTuesday dataset because I wanted to build a simple linear model using Bayesian methods.
+I didn't do too much (and probably did a bit wrong), but this was a useful exercise to get to play around with the modeling.
+
+![](./2019-10-15_big-mtcars_files/figure-gfm/unnamed-chunk-17-1.png)
