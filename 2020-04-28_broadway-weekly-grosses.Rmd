@@ -1,0 +1,208 @@
+---
+title: "Broadway Weekly Grosses"
+author: "Joshua Cook"
+date: "April 28, 2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(glue)
+library(conflicted)
+library(lme4)
+library(ggforce)
+library(lubridate)
+library(tidyverse)
+
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```{r}
+grosses_cols <- cols(
+    week_ending = col_date(format = ""),
+    week_number = col_double(),
+    weekly_gross_overall = col_double(),
+    show = col_character(),
+    theatre = col_character(),
+    weekly_gross = col_double(),
+    potential_gross = col_double(),
+    avg_ticket_price = col_double(),
+    top_ticket_price = col_double(),
+    seats_sold = col_double(),
+    seats_in_theatre = col_double(),
+    pct_capacity = col_double(),
+    performances = col_double(),
+    previews = col_double()
+)
+
+grosses <- read_csv(
+    'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-04-28/grosses.csv',
+    col_types = grosses_cols
+) %>%
+    janitor::clean_names()
+
+grosses
+```
+
+## EDA
+
+```{r}
+grosses %>%
+    mutate(year = year(week_ending)) %>%
+    distinct(show, theatre, year, week_ending, weekly_gross_overall) %>%
+    ggplot(aes(x = week_ending, y = weekly_gross_overall)) +
+    geom_jitter(color = "grey70", alpha = 0.5, size = 0.6) +
+    geom_smooth(color = "black", lty = 2, size = 1.3) +
+    labs(x = "week", y = "weekly overall gross")
+```
+
+```{r}
+set.seed(0)
+grosses %>%
+    sample_frac(0.2) %>%
+    ggplot(aes(x = week_ending, y = avg_ticket_price)) +
+    geom_point(aes(size = pct_capacity, color = seats_sold), alpha = 0.5) +
+    geom_mark_ellipse(aes(filter = avg_ticket_price > 450, 
+                          label = "Springsteen On Broadway")) +
+    scale_size_continuous(range = c(0.1, 2)) +
+    scale_color_distiller(type = "div", palette = "RdYlBu") +
+    labs(x = "week", y = "average ticket price", 
+         size = "percent capacity", color = "seats sold")
+```
+
+```{r}
+grosses %>%
+    filter(seats_sold > 0) %>%
+    group_by(show) %>%
+    mutate(med_seats_sold = median(seats_sold)) %>%
+    ungroup() %>%
+    filter(med_seats_sold > 12000) %>%
+    mutate(show = fct_reorder(show, -seats_sold, median, na.rm = TRUE)) %>%
+    ggplot(aes(x = log(seats_sold), y = show)) +
+    geom_boxplot(outlier.shape = NA, width = 0.6) +
+    scale_x_continuous(limits = c(8.75, 10)) +
+    labs(x = "log(seats sold)", y = NULL, title = "Most popular shows")
+```
+
+## Modeling
+
+```{r}
+grosses %>%
+    mutate(log_avg_ticket_price = log(avg_ticket_price)) %>%
+    select(top_ticket_price, avg_ticket_price, log_avg_ticket_price, pct_capacity) %>%
+    pivot_longer(-top_ticket_price, names_to = "cat", values_to = "value") %>%
+    sample_frac(0.2) %>%
+    ggplot(aes(x = value, y = top_ticket_price)) +
+    facet_wrap(~ cat, nrow = 1, scales = "free_x") +
+    geom_point(size = 0.6, alpha = 0.3, color = "grey20")
+```
+
+```{r}
+grosses %>%
+    sample_frac(0.2) %>%
+    ggplot(aes(x = log(avg_ticket_price), y = pct_capacity)) +
+    geom_point(size = 0.6, alpha = 0.3, color = "grey20")
+```
+
+```{r}
+grosses %>%
+    mutate(log_avg_ticket_price = log(avg_ticket_price)) %>%
+    select(top_ticket_price, avg_ticket_price, log_avg_ticket_price, pct_capacity) %>%
+    pivot_longer(top_ticket_price:pct_capacity) %>%
+    sample_frac(0.4) %>%
+    ggplot(aes(x = value)) +
+    facet_wrap(~ name, nrow = 1, scales = "free_x") +
+    geom_histogram(bins = 100)
+```
+
+
+```{r}
+grosses_data <- grosses %>%
+    filter(avg_ticket_price > 0 & year(week_ending) >= 2010)
+
+top_5_shows <- grosses_data %>%
+    count(show) %>%
+    top_n(5, wt = n)
+
+grosses_data <- grosses_data %>%
+    filter(show %in% top_5_shows$show) %>%
+    select(show, top_ticket_price, avg_ticket_price, pct_capacity) %>%
+    mutate(avg_ticket_price = scale(log(avg_ticket_price))[, 1],
+           pct_capacity = scale(pct_capacity)[, 1])
+```
+
+```{r}
+grosses_data %>%
+    select(top_ticket_price, avg_ticket_price, pct_capacity) %>%
+    pivot_longer(top_ticket_price:pct_capacity) %>%
+    sample_frac(0.4) %>%
+    ggplot(aes(x = value)) +
+    facet_wrap(~ name, nrow = 1, scales = "free_x") +
+    geom_histogram(bins = 100)
+```
+
+
+```{r}
+lm_fit1 <- lm(top_ticket_price ~ avg_ticket_price + pct_capacity, 
+              data = grosses_data)
+summary(lm_fit1)
+glue("lm_fit1 AIC: {AIC(lm_fit1)}")
+```
+
+```{r}
+lm_fit2 <- lm(top_ticket_price ~ avg_ticket_price + pct_capacity + show, 
+              data = grosses_data)
+summary(lm_fit2)
+glue("lm_fit2 AIC: {AIC(lm_fit2)}")
+```
+
+```{r}
+anova(lm_fit1, lm_fit2)
+```
+
+```{r}
+glm_fit1 <- glm(top_ticket_price ~ avg_ticket_price + pct_capacity, 
+               data = grosses_data)
+summary(glm_fit1)
+```
+
+```{r}
+glm_fit2 <- glm(top_ticket_price ~ avg_ticket_price + pct_capacity + show, 
+               data = grosses_data)
+summary(glm_fit2)
+```
+
+```{r}
+anova(glm_fit1, glm_fit2)
+```
+
+```{r}
+me_fit1 <- lmer(
+    top_ticket_price ~ avg_ticket_price + pct_capacity + (1 | show),
+    data = grosses_data
+)
+summary(me_fit1)
+```
+
+```{r}
+plot(me_fit1)
+```
+
+
+```{r}
+me_fit2 <- lmer(
+    top_ticket_price ~ avg_ticket_price + pct_capacity + (1 + avg_ticket_price | show),
+    data = grosses_data
+)
+summary(me_fit2)
+```
+
+```{r}
+plot(me_fit2)
+```
+

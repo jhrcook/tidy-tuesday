@@ -17,6 +17,15 @@ library(fontawesome)
 
 ## Log
 
+**April 28, 2020 - Broadway Weekly Grosses**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-04-28/readme.md) | [analysis](2020-04-28_broadway-weekly-grosses.md)
+
+This data set was not very interesting to me as the numerical values were basically all derived from a single value, making it very difficult to avoid highly correlative covariates when modeling.
+Still, I got some practice at creating an interpreting miced-effects models.
+
+![](./2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-3-1.png)
+
 **April 21, 2020 - GDPR Violations**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-04-21/readme.md) | [analysis](2020-04-21_gdpr-violations.md)
