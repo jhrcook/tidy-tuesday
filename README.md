@@ -23,6 +23,8 @@ practice at creating an interpreting miced-effects models.
 
 ![](./2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-3-1.png)
 
+![](./2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-30-1.png)
+
 **April 21, 2020 - GDPR Violations**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-04-21/readme.md)

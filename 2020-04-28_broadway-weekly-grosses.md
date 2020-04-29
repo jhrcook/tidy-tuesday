@@ -420,3 +420,196 @@ plot(me_fit2)
 ```
 
 ![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+
+-----
+
+(This is an extension to the above analysis later in the day where I
+gave the mixed-effect modeling another look.)
+
+## Data
+
+``` r
+dat <- grosses %>%
+    filter(avg_ticket_price > 0) %>%
+    mutate(year = scale(year(week_ending))[, 1],
+           avg_ticket_price = scale(log(avg_ticket_price))[, 1]) %>%
+    select(theatre, show, weekly_gross, avg_ticket_price, year)
+```
+
+``` r
+dat %>%
+    sample_n(1000) %>%
+    ggplot(aes(x = year, y = avg_ticket_price)) +
+    geom_point()
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+
+## Linear model
+
+``` r
+fit_lm1 <- lm(avg_ticket_price ~ year, data = dat)
+summary(fit_lm1)
+```
+
+    #> 
+    #> Call:
+    #> lm(formula = avg_ticket_price ~ year, data = dat)
+    #> 
+    #> Residuals:
+    #>     Min      1Q  Median      3Q     Max 
+    #> -6.3088 -0.3291  0.0257  0.3874  2.9832 
+    #> 
+    #> Coefficients:
+    #>               Estimate Std. Error t value Pr(>|t|)    
+    #> (Intercept) -6.009e-15  2.612e-03     0.0        1    
+    #> year         8.225e-01  2.612e-03   314.8   <2e-16 ***
+    #> ---
+    #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    #> 
+    #> Residual standard error: 0.5688 on 47397 degrees of freedom
+    #> Multiple R-squared:  0.6765, Adjusted R-squared:  0.6765 
+    #> F-statistic: 9.913e+04 on 1 and 47397 DF,  p-value: < 2.2e-16
+
+``` r
+plot(fit_lm1)
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-23-2.png)<!-- -->![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-23-3.png)<!-- -->![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-23-4.png)<!-- -->
+
+The number of groups to expect from the mixed-effect model.
+
+``` r
+x <- dat %>%
+    distinct(show, theatre) %>%
+    nrow()
+glue("Number of show:theatre groups: {x}")
+```
+
+    #> Number of show:theatre groups: 1282
+
+``` r
+glue("Number of theatre groups: {n_distinct(dat$theatre)}")
+```
+
+    #> Number of theatre groups: 58
+
+Mixed-effect model with random intercepts grouping by show.
+
+``` r
+fit_me1 <- lmer(avg_ticket_price ~ year + (1 | show),
+                data = dat)
+summary(fit_me1)
+```
+
+    #> Linear mixed model fit by REML ['lmerMod']
+    #> Formula: avg_ticket_price ~ year + (1 | show)
+    #>    Data: dat
+    #> 
+    #> REML criterion at convergence: 27555.8
+    #> 
+    #> Scaled residuals: 
+    #>      Min       1Q   Median       3Q      Max 
+    #> -17.3851  -0.5888   0.0358   0.6201   8.5547 
+    #> 
+    #> Random effects:
+    #>  Groups   Name        Variance Std.Dev.
+    #>  show     (Intercept) 0.42467  0.6517  
+    #>  Residual             0.09425  0.3070  
+    #> Number of obs: 47399, groups:  show, 1118
+    #> 
+    #> Fixed effects:
+    #>              Estimate Std. Error t value
+    #> (Intercept) -0.395575   0.019696  -20.08
+    #> year         0.628403   0.002903  216.49
+    #> 
+    #> Correlation of Fixed Effects:
+    #>      (Intr)
+    #> year 0.010
+
+``` r
+plot(fit_me1)
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+
+``` r
+top_10_shows <- dat %>%
+    count(show, sort = TRUE) %>%
+    top_n(8, wt = n) %>%
+    pull(show)
+
+dat %>%
+    mutate(me_pred = predict(fit_me1)) %>%
+    filter(show %in% top_10_shows) %>%
+    ggplot(aes(x = year, y = avg_ticket_price, color = show)) +
+    geom_jitter(size = 0.3, alpha = 0.3, width = 0.02, height = 0.02) +
+    geom_line(aes(y = me_pred), size = 0.9, alpha = 0.8, lty = 2) +
+    scale_color_brewer(type = "qual", palette = "Dark2") +
+    labs(
+        x = "year (normalized)",
+        y = "average ticket price (normalized)",
+        title = "Mixed-effects model with random intercepts",
+        color = "show"
+    )
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+
+Mixed-effects model with random intercepts and slopes grouping by show.
+
+``` r
+fit_me2 <- lmer(avg_ticket_price ~ year + (year | show),
+                data = dat)
+summary(fit_me2)
+```
+
+    #> Linear mixed model fit by REML ['lmerMod']
+    #> Formula: avg_ticket_price ~ year + (year | show)
+    #>    Data: dat
+    #> 
+    #> REML criterion at convergence: 12102.8
+    #> 
+    #> Scaled residuals: 
+    #>      Min       1Q   Median       3Q      Max 
+    #> -21.2473  -0.4984   0.0498   0.5456  10.2537 
+    #> 
+    #> Random effects:
+    #>  Groups   Name        Variance Std.Dev. Corr 
+    #>  show     (Intercept) 1.60747  1.2679        
+    #>           year        1.50917  1.2285   -0.38
+    #>  Residual             0.06294  0.2509        
+    #> Number of obs: 47399, groups:  show, 1118
+    #> 
+    #> Fixed effects:
+    #>             Estimate Std. Error t value
+    #> (Intercept) -0.24415    0.04451  -5.486
+    #> year         0.33370    0.04785   6.975
+    #> 
+    #> Correlation of Fixed Effects:
+    #>      (Intr)
+    #> year -0.307
+
+``` r
+plot(fit_me2)
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+
+``` r
+dat %>%
+    mutate(me_pred = predict(fit_me2)) %>%
+    filter(show %in% top_10_shows) %>%
+    ggplot(aes(x = year, y = avg_ticket_price, color = show)) +
+    geom_jitter(size = 0.3, alpha = 0.3, width = 0.02, height = 0.02) +
+    geom_line(aes(y = me_pred), size = 0.9, alpha = 0.8, lty = 2) +
+    scale_color_brewer(type = "qual", palette = "Dark2") +
+    labs(
+        x = "year (normalized)",
+        y = "average ticket price (normalized)",
+        title = "Mixed-effects model with random intercepts and slopes",
+        color = "show"
+    )
+```
+
+![](2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->

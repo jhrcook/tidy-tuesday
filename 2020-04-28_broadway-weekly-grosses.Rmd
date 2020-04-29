@@ -206,3 +206,108 @@ summary(me_fit2)
 plot(me_fit2)
 ```
 
+---
+
+(This is an extension to the above analysis later in the day where I gave the mixed-effect modeling another look.)
+
+## Data
+
+```{r}
+dat <- grosses %>%
+    filter(avg_ticket_price > 0) %>%
+    mutate(year = scale(year(week_ending))[, 1],
+           avg_ticket_price = scale(log(avg_ticket_price))[, 1]) %>%
+    select(theatre, show, weekly_gross, avg_ticket_price, year)
+```
+
+```{r}
+dat %>%
+    sample_n(1000) %>%
+    ggplot(aes(x = year, y = avg_ticket_price)) +
+    geom_point()
+```
+
+
+## Linear model
+
+```{r}
+fit_lm1 <- lm(avg_ticket_price ~ year, data = dat)
+summary(fit_lm1)
+```
+
+```{r}
+plot(fit_lm1)
+```
+
+
+The number of groups to expect from the mixed-effect model.
+
+```{r}
+x <- dat %>%
+    distinct(show, theatre) %>%
+    nrow()
+glue("Number of show:theatre groups: {x}")
+glue("Number of theatre groups: {n_distinct(dat$theatre)}")
+```
+
+Mixed-effect model with random intercepts grouping by show.
+
+```{r}
+fit_me1 <- lmer(avg_ticket_price ~ year + (1 | show),
+                data = dat)
+summary(fit_me1)
+```
+
+```{r}
+plot(fit_me1)
+```
+
+```{r}
+top_10_shows <- dat %>%
+    count(show, sort = TRUE) %>%
+    top_n(8, wt = n) %>%
+    pull(show)
+
+dat %>%
+    mutate(me_pred = predict(fit_me1)) %>%
+    filter(show %in% top_10_shows) %>%
+    ggplot(aes(x = year, y = avg_ticket_price, color = show)) +
+    geom_jitter(size = 0.3, alpha = 0.3, width = 0.02, height = 0.02) +
+    geom_line(aes(y = me_pred), size = 0.9, alpha = 0.8, lty = 2) +
+    scale_color_brewer(type = "qual", palette = "Dark2") +
+    labs(
+        x = "year (normalized)",
+        y = "average ticket price (normalized)",
+        title = "Mixed-effects model with random intercepts",
+        color = "show"
+    )
+```
+
+Mixed-effects model with random intercepts and slopes grouping by show.
+
+```{r}
+fit_me2 <- lmer(avg_ticket_price ~ year + (year | show),
+                data = dat)
+summary(fit_me2)
+```
+
+```{r}
+plot(fit_me2)
+```
+
+```{r}
+dat %>%
+    mutate(me_pred = predict(fit_me2)) %>%
+    filter(show %in% top_10_shows) %>%
+    ggplot(aes(x = year, y = avg_ticket_price, color = show)) +
+    geom_jitter(size = 0.3, alpha = 0.3, width = 0.02, height = 0.02) +
+    geom_line(aes(y = me_pred), size = 0.9, alpha = 0.8, lty = 2) +
+    scale_color_brewer(type = "qual", palette = "Dark2") +
+    labs(
+        x = "year (normalized)",
+        y = "average ticket price (normalized)",
+        title = "Mixed-effects model with random intercepts and slopes",
+        color = "show"
+    )
+```
+
