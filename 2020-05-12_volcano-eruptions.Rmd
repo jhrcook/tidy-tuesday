@@ -1,0 +1,291 @@
+---
+title: "Volcano Eruptions"
+author: "Joshua Cook"
+date: "May 12, 2020"
+output: github_document
+---
+
+## Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(glue)
+library(naniar)
+library(lubridate)
+library(patchwork)
+library(magrittr)
+library(easystats)
+library(MASS)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```{r}
+volcano <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/volcano.csv")
+eruptions <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/eruptions.csv")
+# events <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/events.csv")
+# tree_rings <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/tree_rings.csv")
+# sulfur <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-12/sulfur.csv")
+
+
+volcano %<>% janitor::clean_names()
+eruptions %<>% janitor::clean_names()
+```
+
+Filter only for rows with Volcano Explosivity Index (VEI) values and an eurption category that shows the eruption was confirmed.
+Transform the date information into `date` objects and measure the duration of the eruptions.
+
+```{r}
+eruption_data <- eruptions %>%
+    filter(!is.na(vei) & !is.na(eruption_category)) %>%
+    filter(eruption_category == "Confirmed Eruption") %>%
+    filter(!is.na(start_day) & start_day > 0 & start_year > 1000) %>%
+    filter(!is.na(end_day) & end_day > 0) %>%
+    mutate(start_date = paste(start_year, start_month, start_day, sep = "-"),
+           start_date = ymd(start_date),
+           end_date = paste(end_year, end_month, end_day, sep = "-"),
+           end_date = ymd(end_date),
+           duration = end_date - start_date) %>%
+    select(volcano_number:vei, latitude:duration)
+eruption_data
+```
+
+```{r}
+volcano_data <- volcano %>%
+    select(volcano_name, volcano_number, primary_volcano_type, country, 
+           tectonic_settings, major_rock_1) %>%
+    distinct()
+```
+
+```{r}
+eruption_data <- inner_join(eruption_data, volcano_data, 
+                by = c("volcano_number", "volcano_name"))
+```
+
+```{r}
+miss_var_summary(eruption_data)
+```
+
+## EDA
+
+```{r}
+eruption_counts <- eruption_data %>%
+    count(volcano_name, sort = TRUE)
+
+eruption_data %>%
+    filter(volcano_name %in% eruption_counts$volcano_name[1:10]) %>%
+    ggplot(aes(x = vei, y = volcano_name)) +
+    geom_jitter(height = 0.2, alpha = 0.5) +
+    theme(
+        legend.position = "none"
+    ) +
+    labs(x = "volcano explosivity index",
+         y = NULL,
+         title = "Explosivity of the top-10 most frequently erupting volcanoes")
+```
+
+```{r}
+eruption_data %>%
+    ggplot(aes(x = log(as.numeric(duration) + 1))) +
+    facet_wrap(~ vei) +
+    geom_density() +
+    labs(x = "number of days (log + 1)",
+         y = "density",
+         title = "Duration of eruptions, separated by VEI")
+```
+
+
+## Modeling
+
+Below, I made a few linear models and played around with the functions provided by the 'easystats' suite of packages.
+I didn't do any focussed analysis, I just wanted to see what was available in these pacakges.
+
+```{r}
+scale_nums <- function(x) {
+    (x - mean(x)) / sd(x)
+}
+
+d <- eruption_data %>%
+    mutate(days_dur = as.numeric(duration)) %>%
+    select(volcano_name, volcano_number, eruption_number,
+           vei, latitude, longitude, days_dur,
+           primary_volcano_type, tectonic_settings, major_rock_1) %>%
+    distinct() %>%
+    mutate(log_days = log(days_dur + 1),
+           vei = scale_nums(vei),
+           latitude = scale_nums(latitude),
+           longitude = scale_nums(longitude))
+```
+
+
+```{r}
+m1 <- lm(log_days ~ vei, data = d)
+
+model_parameters(m1)
+model_performance(m1)
+check_model(m1)
+```
+
+```{r}
+m2 <- lm(log_days ~ vei + tectonic_settings + major_rock_1, 
+         data = d)
+
+model_parameters(m2)
+model_performance(m2)
+check_model(m2)
+```
+
+```{r}
+m3 <- lm(log_days ~ vei + latitude*longitude, data = d)
+
+model_parameters(m3)
+model_performance(m3)
+check_model(m3)
+```
+
+```{r}
+m4 <- lm(log_days ~ vei + latitude + longitude, data = d)
+
+model_parameters(m4)
+model_performance(m4)
+check_model(m4)
+```
+
+```{r}
+m5 <- lm(log_days ~ vei + tectonic_settings + major_rock_1 + latitude*longitude, 
+         data = d)
+
+model_parameters(m5)
+model_performance(m5)
+check_model(m5)
+```
+
+```{r}
+compare_performance(m1, m2, m3, m4, m5)
+```
+
+
+```{r}
+plot(compare_performance(m1, m2, m3, m4, m5))
+```
+
+From the 'insight' package.
+
+```{r}
+get_parameters(m5)
+find_algorithm(m5)
+find_formula(m5)
+```
+
+From the 'parameters' package.
+
+```{r}
+select_parameters(m5) %>%
+    model_parameters()
+```
+
+Try to improve model 5 using the `stepAIC()` algorithm from the 'MASS' package.
+
+```{r}
+m6 <- stepAIC(m5)
+```
+
+```{r}
+compare_performance(m5, m6)
+plot(compare_performance(m5, m6))
+```
+
+## Mixed effect model
+
+```{r}
+library(lme4)
+```
+```{r}
+me1 <- lmer(log_days ~ 1 + vei + (1|volcano_name), data = d)
+
+summary(me1)
+check_model(me1)
+```
+
+```{r}
+me2 <- lmer(log_days ~ vei + (1|tectonic_settings/volcano_name), data = d)
+
+summary(me2)
+check_model(me2)
+```
+
+```{r}
+me3 <- lmer(log_days ~ vei + (vei|volcano_name), data = d)
+
+summary(me3)
+check_model(me3)
+```
+
+```{r}
+me4 <- lmer(log_days ~ vei + (1|tectonic_settings), data = d)
+
+summary(me4)
+check_model(me4)
+```
+
+```{r}
+compare_performance(me1, me2, me3, me4)
+```
+
+```{r}
+anova(me1, me2, me3, me4)
+```
+
+```{r}
+volcanos_to_plot <- d %>%
+    count(volcano_name) %>%
+    top_n(9, wt = n) %>%
+    pull(volcano_name)
+
+d %>%
+    mutate(pred = predict(me3)) %>%
+    filter(volcano_name %in% volcanos_to_plot) %>%
+    ggplot(aes(x = vei, color = volcano_name)) +
+    geom_jitter(aes(y = log_days), width = 0.2, alpha = 0.5, size = 0.7) +
+    geom_line(aes(y = pred), size = 1.2) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = "volcanic explosivity index",
+         y = "days of eruption (log + 1)",
+         title = "Mixed effects model of eruption duration regressed on volcanic explosivity",
+         subtitle = "Each volcano was a random effect with a separate intercept and slope.")
+```
+```{r}
+summary(me3)
+```
+
+```{r}
+head(coefficients(me3)$volcano_name)
+```
+
+```{r}
+ggeffects::ggpredict(me3, terms = "vei") %>%
+    ggplot(aes(x = x , y = predicted)) +
+    geom_ribbon(aes(ymin = predicted - std.error, ymax = predicted + std.error),
+                alpha = 0.2) +
+    geom_line(size = 1.3, lty = 2, color = "skyblue4") +
+    geom_jitter(data = d, aes(x = vei, y = log_days, color = volcano_name), 
+                size = 0.3, alpha = 0.4) +
+    theme(legend.position = "none") +
+    labs(x = "volcanic explosivity index",
+         y = "days of eruption (log + 1)",
+         title = "Mixed effects model predictions",
+         subtitle = "Each volcano was a random effect with a separate intercept and slope.")
+```
+
+```{r}
+stargazer::stargazer(me3, type = "text", digits = 3, digit.separator = "")
+```
+

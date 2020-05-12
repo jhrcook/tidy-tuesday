@@ -11,17 +11,29 @@ on a new “toy” data set.
 
 ## Log
 
+**May 12, 2020 - Volcano Eruptions**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-12/readme.md)
+| [analysis](2020-05-12_volcano-eruptions.md)
+
+I took this as a chance to play around with the suite of packages from
+[‘easystats’](https://github.com/easystats/easystats). Towards the
+end, I also experiment a bit more with mixed-effects modeling to help
+get a better understanding of how to interpret these models.
+
+![](2020-05-12_volcano-eruptions_files/figure-gfm/unnamed-chunk-13-1.png)
+
 **May 5, 2020 - Animal Crossing - New Horizons**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-05/readme.md)
-| [analysis](2020-05-5_animal-crossing-new-horizons.md)
+| [analysis](2020-05-05_animal-crossing-new-horizons.md)
 
 I used sentiment analysis results on user reivews to model their review
 grade using a multivariate Bayesian model fit with the quadratic
 approximation. The model was pretty awful, but I was able to get some
 good practice at this statisticaly techinque I am still learning.
 
-![](2020-05-5_animal-crossing-new-horizons_files/figure-gfm/unnamed-chunk-7-1.png)
+![](2020-05-05_animal-crossing-new-horizons_files/figure-gfm/unnamed-chunk-7-1.png)
 
 **April 28, 2020 - Broadway Weekly Grosses**
 
