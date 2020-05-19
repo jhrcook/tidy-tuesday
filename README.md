@@ -11,6 +11,18 @@ on a new “toy” data set.
 
 ## Log
 
+**May 19, 2020 - Volcano Eruptions**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-19/readme.md)
+| [analysis](2020-05-19_beach-volleyball.md)
+
+I used logisitic models to predict winners and losers of volleyball
+matches based on gameplay statistics (e.g. number of attacks, errors,
+digs, etc.). I found that including interactions with game duration
+increased the performance of the model without overfitting.
+
+![](2020-05-19_beach-volleyball_files/figure-gfm/unnamed-chunk-19-1.png)
+
 **May 12, 2020 - Volcano Eruptions**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-12/readme.md)

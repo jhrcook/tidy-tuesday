@@ -1,0 +1,347 @@
+---
+title: "Beach Volleyball"
+author: "Joshua Cook"
+date: "May 19, 2020"
+output: github_document
+---
+
+## Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>")
+
+library(glue)
+library(naniar)
+library(lubridate)
+library(patchwork)
+library(magrittr)
+library(broom)
+library(yardstick)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```{r}
+vb_matches <- read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-19/vb_matches.csv",
+    guess_max = 76000,
+    col_types = cols()
+) %>%
+    janitor::clean_names()
+```
+
+## EDA
+
+```{r}
+skimr::skim(vb_matches)
+```
+
+## Prepare model data
+
+Prepare data to use for modeling wins and losses.
+Only gameplay statistics and duration will be used for the model.
+
+```{r}
+vb_match_stats <- vb_matches %>%
+    select(tournament:match_num,
+           w_rank, l_rank, score, duration,
+           w_p1_tot_attacks:w_p1_tot_errors, w_p1_tot_aces:w_p1_tot_digs,
+           w_p2_tot_attacks:w_p2_tot_errors, w_p2_tot_aces:w_p2_tot_digs,
+           l_p1_tot_attacks:l_p1_tot_errors, l_p1_tot_aces:l_p1_tot_digs,
+           l_p2_tot_attacks:l_p2_tot_errors, l_p2_tot_aces:l_p2_tot_digs) %>%
+    filter_all(all_vars(!is.na(.))) %>%
+    mutate(match_idx = row_number())
+```
+
+The gameplay statstics are summed for each team.
+
+```{r}
+vb_data <- vb_match_stats %>%
+    mutate(
+        w_attacks = w_p1_tot_attacks + w_p2_tot_attacks,
+        w_kills = w_p1_tot_kills + w_p2_tot_kills,
+        w_errors = w_p1_tot_errors + w_p2_tot_errors,
+        w_aces = w_p1_tot_aces + w_p2_tot_aces,
+        w_serveerrors = w_p1_tot_serve_errors + w_p2_tot_serve_errors,
+        w_blocks = w_p1_tot_blocks + w_p2_tot_blocks,
+        w_digs = w_p1_tot_digs + w_p2_tot_digs,
+        l_attacks = l_p1_tot_attacks + l_p2_tot_attacks,
+        l_kills = l_p1_tot_kills + l_p2_tot_kills,
+        l_errors = l_p1_tot_errors + l_p2_tot_errors,
+        l_aces = l_p1_tot_aces + l_p2_tot_aces,
+        l_serveerrors = l_p1_tot_serve_errors + l_p2_tot_serve_errors,
+        l_blocks = l_p1_tot_blocks + l_p2_tot_blocks,
+        l_digs = l_p1_tot_digs + l_p2_tot_digs
+    ) %>%
+    select(match_idx, tournament:match_num,
+           w_rank, l_rank, score, duration,
+           w_attacks:l_digs) %>%
+    mutate(l_rank = as.numeric(str_extract(l_rank, "^[:digit:]+(?=,|$)")),
+           w_rank = as.numeric(str_extract(w_rank, "^[:digit:]+(?=,|$)")),
+           rank_diff = w_rank - l_rank) %>%
+    filter(!is.na(l_rank) & !is.na(w_rank))
+```
+
+```{r}
+scale2 <- function(x, na.rm = FALSE) {
+    (x - mean(x, na.rm = na.rm)) / sd(x, na.rm = na.rm)
+}
+
+d_all <- vb_data %>%
+    mutate(duration = as.numeric(duration) / 60) %>%
+    select(duration, w_attacks:l_digs)
+
+d_winners <- d_all %>% 
+    select(duration, w_attacks:w_digs) %>% 
+    add_column(result = 1)
+d_losers <- d_all %>% 
+    select(duration, l_attacks:l_digs) %>% 
+    add_column(result = 0)
+colnames(d_winners) <- str_remove_all(colnames(d_winners), "^w_")
+colnames(d_losers) <- str_remove_all(colnames(d_losers), "^l_")
+d <- bind_rows(d_winners, d_losers) %>%
+    mutate_at(c("duration", "attacks", "kills", "errors", "aces", 
+                "serveerrors", "blocks", "digs"), scale2)
+
+```
+
+The modeling data was split into testing and training.
+
+```{r}
+set.seed(0)
+test_idx <- sample(1:nrow(d), 0.2 * nrow(d), replace = FALSE)
+test_data <- d[test_idx, ]
+train_data <- d[!(1:nrow(d) %in% test_data), ]
+```
+
+It is important to check for colinearity of predictors.
+
+```{r}
+train_data %>% 
+    select(-duration, -result) %>%
+    sample_n(100) %>%
+    pairs()
+```
+
+## Modeling Wins vs. Losses
+
+### Model 1. Just an intercept
+
+This model will serve as the baseline: what would be expected given the average results of games.
+Since there is always one winner and one loser, the intercept should be 0.5.
+
+```{r}
+m1 <- glm(result ~ 1, data = train_data, family = "binomial")
+```
+
+### Model 2. All gameplay statistics
+
+```{r}
+m2 <- glm(result ~ attacks + kills + errors + aces + serveerrors + blocks,
+          data = train_data,
+          family = "binomial")
+summary(m2)
+```
+
+```{r}
+performance::check_collinearity(m2)
+```
+
+### Model 3. All gameplay statistics and their interaction with match duration
+
+```{r}
+m3 <- glm(result ~ duration * ., data = train_data, family = "binomial")
+summary(m3)
+```
+
+```{r}
+performance::check_collinearity(m3)
+```
+
+## Model evaluation
+
+### Predictions on training and testing data
+
+```{r}
+m1_train_pred <- predict(m1, type = "response")
+m1_test_pred <- predict(m1, newdata = test_data, type = "response")
+
+m2_train_pred <- predict(m2, type = "response")
+m2_test_pred <- predict(m2, newdata = test_data, type = "response")
+
+m3_train_pred <- predict(m3, type = "response")
+m3_test_pred <- predict(m3, newdata = test_data, type = "response")
+```
+
+```{r}
+tibble(name = c("m1_train", "m1_test", 
+                "m2_train", "m2_test", 
+                "m3_train", "m3_test"),
+       value = c(list(m1_train_pred),
+                 list(m1_test_pred),
+                 list(m2_train_pred),
+                 list(m2_test_pred),
+                 list(m3_train_pred),
+                 list(m3_test_pred))
+       ) %>%
+    unnest(value) %>%
+    ggplot(aes(x = value, color = name, fill = name)) +
+    geom_density(alpha = 0.2, size = 1) +
+    scale_color_brewer(palette = "Set2") +
+    scale_fill_brewer(palette = "Set2")
+```
+
+### Accuracy
+
+$$
+\text{Accuracy} = \frac{TP + TN}{TP + FP + FN + TN}
+$$
+
+```{r}
+my_accuracy <- function(truth, estimate) {
+    accuracy(tibble(truth = factor(truth, levels = c(0, 1)),
+                estimate = factor(round(estimate), levels = c(0, 1))),
+         truth, estimate)
+}
+
+
+bind_rows(
+    my_accuracy(train_data$result, m1_train_pred),
+    my_accuracy(test_data$result, m1_test_pred),
+    my_accuracy(train_data$result, m2_train_pred),
+    my_accuracy(test_data$result, m2_test_pred),
+    my_accuracy(train_data$result, m3_train_pred),
+    my_accuracy(test_data$result, m3_test_pred)
+) %>%
+    mutate(name = c("m1 train", "m1 test", "m2 train", "m2 test", "m3 train", "m3 test"))
+
+```
+
+### Precision
+
+$$
+\text{Precision} = \frac{TP}{TP + FP}
+$$
+
+```{r}
+my_precision <- function(truth, estimate) {
+    precision(tibble(truth = factor(truth, levels = c(0, 1)),
+                     estimate = factor(round(estimate), levels = c(0, 1))),
+              truth, estimate)
+}
+
+
+bind_rows(
+    my_precision(train_data$result, m1_train_pred),
+    my_precision(test_data$result, m1_test_pred),
+    my_precision(train_data$result, m2_train_pred),
+    my_precision(test_data$result, m2_test_pred),
+    my_precision(train_data$result, m3_train_pred),
+    my_precision(test_data$result, m3_test_pred)
+) %>%
+    mutate(name = c("m1 train", "m1 test", "m2 train", "m2 test", "m3 train", "m3 test"))
+```
+
+### Recall
+
+$$
+\text{Recall} = \frac{TP}{TP + FN}
+$$
+
+```{r}
+my_recall <- function(truth, estimate) {
+    recall(tibble(truth = factor(truth, levels = c(0, 1)),
+                  estimate = factor(round(estimate), levels = c(0, 1))),
+           truth, estimate)
+}
+
+
+bind_rows(
+    my_recall(train_data$result, m1_train_pred),
+    my_recall(test_data$result, m1_test_pred),
+    my_recall(train_data$result, m2_train_pred),
+    my_recall(test_data$result, m2_test_pred),
+    my_recall(train_data$result, m3_train_pred),
+    my_recall(test_data$result, m3_test_pred)
+) %>%
+    mutate(name = c("m1 train", "m1 test", "m2 train", "m2 test", "m3 train", "m3 test"))
+```
+
+### ROC curves
+
+```{r}
+my_roc_auc <- function(truth, estimate) {
+    roc_auc(tibble(truth = factor(truth, levels = c(0, 1)),
+                   estimate = round(estimate)),
+            truth = "truth", 
+            estimate,
+            estimator = "binary")
+}
+
+
+model_roc_auc <- bind_rows(
+    my_roc_auc(train_data$result, m1_train_pred),
+    my_roc_auc(test_data$result, m1_test_pred),
+    my_roc_auc(train_data$result, m2_train_pred),
+    my_roc_auc(test_data$result, m2_test_pred),
+    my_roc_auc(train_data$result, m3_train_pred),
+    my_roc_auc(test_data$result, m3_test_pred)
+) %>%
+    mutate(name = c("m1 train", "m1 test", "m2 train", "m2 test", "m3 train", "m3 test"))
+model_roc_auc
+```
+
+```{r}
+my_roc_curve <- function(truth, estimate) {
+    roc_curve(tibble(truth = factor(truth, levels = c(0, 1)),
+                 estimate = estimate),
+          estimate,
+          truth = truth)
+}
+
+
+bind_rows(
+    my_roc_curve(train_data$result, m1_train_pred) %>%
+        add_column(name = "m1 train"),
+    my_roc_curve(test_data$result, m1_test_pred) %>%
+        add_column(name = "m1 test"),
+    my_roc_curve(train_data$result, m2_train_pred) %>%
+        add_column(name = "m2 train"),
+    my_roc_curve(test_data$result, m2_test_pred) %>%
+        add_column(name = "m2 test"),
+    my_roc_curve(train_data$result, m3_train_pred) %>%
+        add_column(name = "m3 train"),
+    my_roc_curve(test_data$result, m3_test_pred) %>%
+        add_column(name = "m3 test")
+) %>%
+    left_join(model_roc_auc, by = "name") %>%
+    mutate(label = paste0(name, " (AUC = ", round(.estimate, 3), ")")) %>%
+    ggplot(aes(x = 1 - specificity, y = sensitivity)) +
+    geom_line(aes(group = name, color = label), size = 1) +
+    scale_color_brewer(palette = "Set2") +
+    scale_x_continuous(limits = c(0, 1), expand = expansion(mult = c(0.01, 0.01))) +
+    scale_y_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0.01))) +
+    theme(
+        legend.position = c(0.75, 0.23)
+    ) +
+    coord_fixed() +
+    labs(title = "ROC for logisitc models of volleyball statistics",
+         subtitle = "Model 3 includes interaction terms for match duration.",
+         color = NULL)
+```
+
+## Conclusion
+
+Including the interactions with duration improved the model without causing overfitting.
+This is not suprising as it is reasonable that the number of errors might increase in longer games and that longer games have more time for attacks, digs, etc.
+
+Instead of the interaction terms, I could have divided the number of gameplay moves by the duration (e.g. number of attacks per minute).
+However, I think the interaction term is more informative than the rate of a gameplay statistic, because, as noted above, the rate could be different depending on the duration.
+If I had more time, this would be worth exploring further.
