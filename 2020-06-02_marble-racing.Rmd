@@ -1,0 +1,200 @@
+---
+title: "Marble Racing"
+author: "Joshua Cook"
+date: "June 2, 2020"
+output: github_document
+---
+
+## Setup
+
+TidyTuesday link: https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-02/readme.md
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", cache = TRUE)
+
+library(glue)
+library(magrittr)
+library(ggtext)
+library(ggforce)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```{r}
+marbles <- read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-06-02/marbles.csv"
+) %>%
+    janitor::clean_names() %>%
+    mutate(race_type = ifelse(str_detect(race, "Q"), "qual", "race"),
+           race_num = str_extract(race, "(?<=Q|R)[:digit:]+$"))
+```
+
+## EDA
+
+```{r}
+marbles %>% filter(!is.na(notes)) %>% pull(notes)
+```
+
+## Modeling Questions
+
+### Are finishes spread evenly?
+
+```{r}
+marbles %>%
+    group_by(race) %>%
+    mutate(position = row_number()) %>%
+    ungroup() %>%
+    count(marble_name, position) %>%
+    mutate(marble_name = fct_reorder(marble_name, -n*position*position)) %>%
+    ggplot(aes(x = n, y = marble_name)) +
+    geom_col(aes(fill = position)) +
+    scale_fill_gradient(low = "purple", high = "orange") +
+    scale_x_continuous(expand = c(0, 0)) +
+    theme(axis.title.y = element_blank()) +
+    labs(x = "number of races or qualifiers",
+         fill = "finishing\nposition",
+         title = "Distribution of finishing positions",
+         subtitle = "The results from qualifying laps and full races.")
+```
+
+```{r}
+final_positions <- marbles %>%
+    mutate(race_type = ifelse(str_detect(race, "Q"), "qualifying", "race")) %>%
+    group_by(race) %>%
+    mutate(position = row_number()) %>%
+    ungroup() %>%
+    select(marble_name, position)
+
+summary(aov(position ~ marble_name, data = final_positions))
+```
+
+```{r}
+position_model <- lm(position ~ marble_name, data = final_positions)
+summary(position_model)
+```
+
+```{r}
+broom::tidy(position_model) %>%
+    janitor::clean_names() %>%
+    filter(term != "(Intercept)") %>%
+    mutate(
+        term = str_remove(term, "marble_name"),
+        term = fct_reorder(term, -estimate),
+        p_val_sig = p_value < 0.05,
+    ) %>%
+    ggplot(aes(estimate, term)) +
+    geom_vline(xintercept = 0, color = "grey20", size = 1) +
+    geom_linerange(aes(xmin = 0, xmax = estimate)) +
+    geom_point(aes(color = estimate, size = p_val_sig)) +
+    scale_color_gradient(low = "purple", high = "orange", guide = FALSE) +
+    scale_size_manual(values = c(2, 4)) + 
+    theme(legend.position = c(0.85, 0.4),
+          axis.title.y = element_blank()) +
+    labs(x = "coefficient estimate",
+         size = "p-value < 0.05",
+         title = "There are differences in finishing positions per marble",
+         subtitle = "Linear model on final position of all races by marble name. A smaller estiamte indicates that the\nmarble tends to finish better.")
+```
+
+
+### Can predict the race result from the pole position?
+
+```{r}
+position_changes <- marbles %>%
+    group_by(race) %>%
+    mutate(position = row_number()) %>%
+    ungroup() %>%
+    select(race_num, race_type, marble_name, position) %>%
+    pivot_wider(c(race_num, marble_name),
+                names_from = race_type,
+                values_from = position)
+
+position_changes %>%
+    count(qual, race) %>%
+    ggplot() +
+    geom_diagonal(aes(x = "qual", xend = "race",
+                      y = qual, yend = race,
+                      color = n, size = n, alpha = n)) +
+    scale_color_gradient(low = "orange", high = "purple") +
+    scale_size_continuous(range = c(1, 3)) +
+    scale_x_discrete(expand = c(0, 0)) +
+    theme(axis.title.x = element_blank()) +
+    labs(y = "position",
+         color = "count",
+         size = "count",
+         alpha = "count",
+         title = "Changes in final position from qualifiers to race day.")
+```
+
+```{r}
+pos_change_model <- lm(race ~ qual, data = position_changes)
+summary(pos_change_model)
+```
+
+```{r}
+mdl_vals <- broom::glance(pos_change_model) %>% janitor::clean_names()
+mdl_rsq <- round(mdl_vals$r_squared[[1]], 3)
+mdl_pval <- mdl_vals$p_value[[1]]
+mdl_intercept <- round(coef(pos_change_model)["(Intercept)"], 3)
+mdl_coef <- round(coef(pos_change_model)["qual"], 3)
+sub_ttl <- glue("*R*<sup>2</sup>: {mdl_rsq}, *p*-value: 3.95 x 10<sup>-11</sup>, *y*-intercept: {mdl_intercept}, slope: {mdl_coef}")
+
+position_changes %>%
+    ggplot(aes(x = qual, y = race)) +
+    geom_jitter(width = 0.2, height = 0.2) +
+    geom_smooth(method = "lm", formula = "y~x") +
+    theme(plot.subtitle = element_markdown()) +
+    labs(x = "qualifying position",
+         y = "race position",
+         title = "Effect of qualifying position on final position on race day",
+         subtitle = glue(sub_ttl))
+```
+
+### Model the lap time of each marble accounting for variability in the tracks.
+
+```{r}
+library(lme4)
+
+lap_time_data <- marbles %>%
+    select(site, marble_name, avg_time_lap)
+
+lap_time_model <- lmer(avg_time_lap ~ marble_name + (1|site),
+                       data = lap_time_data)
+summary(lap_time_model)
+```
+
+```{r}
+lap_time_coefs <- summary(lap_time_model)$coefficients %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "term") %>%
+    as_tibble() %>%
+    janitor::clean_names()
+
+lap_time_intercept <- lap_time_coefs %>%
+    filter(term == "(Intercept)") %>%
+    pull(estimate)
+
+lap_time_coefs %>%
+    filter(term != "(Intercept)") %>%
+    mutate(estimate_adj = estimate + !!lap_time_intercept,
+           marble_name = str_remove(term, "marble_name"),
+           marble_name = fct_reorder(marble_name, -estimate)) %>%
+    ggplot(aes(x = estimate_adj, y = marble_name)) +
+    geom_linerange(aes(xmin = estimate_adj, xmax = estimate_adj - estimate)) + 
+    geom_vline(xintercept = lap_time_intercept, color = "grey20", size = 1) +
+    geom_point(aes(color = estimate), size = 4) +
+    scale_color_gradient(low = "orange", high = "purple") +
+    theme(axis.title.y = element_blank(),
+          legend.position = c(0.85, 0.5)) +
+    labs(x = "average lap time (s)",
+         title = "Average lap time per marble, accounting for variability in tracks",
+         subtitle = "A mixed-effects model was used to estimate each marbles lap time while accounting\nfor variability in each race's track.")
+```
+
