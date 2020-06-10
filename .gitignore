@@ -76,3 +76,4 @@ vignettes/*.pdf
 # End of https://www.gitignore.io/api/r,macos
 
 data/*
+.mustashe/*

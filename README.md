@@ -11,6 +11,16 @@ on a new “toy” data set.
 
 ## Log
 
+**June 9, 2020 - Passwords**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-14/readme.md)
+| [analysis](2020-06-09_passwords.md)
+
+I experimented with various modeling methods, though didn’t do anything
+terribly spectacular this time around.
+
+![](2020-06-09_passwords_files/figure-gfm/unnamed-chunk-3-1.png)
+
 **June 2, 2020 - Marble Racing**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-02/readme.md)
