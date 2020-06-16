@@ -1,0 +1,252 @@
+---
+title: "International Powerlifting"
+author: "Joshua Cook"
+date: "June 16, 2020"
+output: github_document
+---
+
+## Setup
+
+TidyTuesday link: https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-10-08
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      comment = "#>", 
+                      cache = TRUE, 
+                      dpi = 300)
+
+library(mustashe)
+library(glue)
+library(magrittr)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+blue <- "#5eafe6"
+red <- "#eb5e60"
+
+theme_set(theme_minimal())
+```
+
+## Data
+
+```{r}
+ipf_lifts <- read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-08/ipf_lifts.csv"
+) %>%
+    janitor::clean_names()
+```
+
+## EDA
+
+```{r}
+ipf_lifts %>%
+    naniar::miss_var_summary()
+```
+
+```{r}
+ipf_lifts %>%
+    select(date, name, sex, best3deadlift_kg, best3squat_kg, best3bench_kg) %>%
+    pivot_longer(-c(date, name, sex), names_to = "comp", values_to = "kg") %>%
+    filter(!is.na(kg)) %>%
+    group_by(sex, comp) %>%
+    sample_n(1e3) %>%
+    ungroup() %>%
+    ggplot(aes(date, kg)) +
+    facet_grid(sex ~ comp) +
+    geom_point(aes(color = sex), size = 0.6, alpha = 0.5) +
+    scale_color_brewer(palette = "Set1") +
+    labs(x = "date",
+         y = "mass lifted (kg)",
+         color = "sex",
+         title = "Changes in mass lifted over time")
+```
+
+```{r}
+ipf_lifts %>%
+    filter(!is.na(age)) %>%
+    select(name, age, best3deadlift_kg, best3squat_kg, best3bench_kg) %>%
+    pivot_longer(-c(name, age), names_to = "comp", values_to = "kg") %>%
+    filter(!is.na(kg)) %>%
+    group_by(comp) %>%
+    sample_n(3e3) %>%
+    ungroup() %>%
+    ggplot(aes(x = age, y = kg)) +
+    facet_wrap(~ comp, scales = "free", nrow = 1) +
+    geom_point(aes(color = comp), size = 0.6, alpha = 0.5) +
+    scale_color_brewer(palette = "Set2") +
+    labs(x = "age",
+         y = "mass lifted (kg)",
+         color = "competition",
+         title = "Mass lifted in each competition by age of competitor")
+```
+
+```{r}
+table(ipf_lifts$equipment)
+```
+
+## Modeling
+
+### Modeling 1. Linear models to see what factors are important for bench press.
+
+```{r}
+scale2 <- function(x, na.rm = FALSE) {
+    (x - mean(x, na.rm = na.rm)) / sd(x, na.rm = na.rm)
+}
+
+modeling_data1 <- ipf_lifts %>%
+    select(name, sex, equipment, age, bodyweight_kg, best3bench_kg, date) %>%
+    filter_all(all_vars(!is.na(.))) %>%
+    mutate(sex = as.numeric(sex == "M"),
+           age = scale2(age),
+           bodyweight_kg = scale2(bodyweight_kg),
+           year = lubridate::year(date)) %>%
+    select(-date)
+
+modeling_data1
+```
+
+```{r}
+m1_age <- lm(best3bench_kg ~ 1 + age, data = modeling_data1)
+summary(m1_age)
+```
+
+```{r}
+m1_age_sex <- lm(best3bench_kg ~ 1 + age + sex, data = modeling_data1)
+summary(m1_age_sex)
+```
+
+```{r}
+m1_agesex <- lm(best3bench_kg ~ 1 + age * sex, data = modeling_data1)
+summary(m1_agesex)
+```
+
+```{r}
+anova(m1_age, m1_age_sex, m1_agesex)
+AIC(m1_age, m1_age_sex, m1_agesex)
+```
+
+
+```{r}
+m1_agesex_bdywt <- lm(best3bench_kg ~ 1 + age * sex + bodyweight_kg, 
+                      data = modeling_data1)
+summary(m1_agesex_bdywt)
+```
+
+```{r}
+m1_agesex_bdywt_eqpt <- lm(
+    best3bench_kg ~ 1 + age * sex + bodyweight_kg + equipment, 
+    data = modeling_data1
+)
+summary(m1_agesex_bdywt_eqpt)
+```
+
+```{r}
+anova(m1_age, m1_age_sex, m1_agesex, m1_agesex_bdywt, m1_agesex_bdywt_eqpt)
+AIC(m1_age, m1_age_sex, m1_agesex, m1_agesex_bdywt, m1_agesex_bdywt_eqpt)
+```
+
+```{r}
+age_seq <- seq(-2.5, 4, length.out = 100)
+bdywt_seq <- seq(-2, 5.5, length.out = 100)
+eqpt_seq <- unique(modeling_data1$equipment)
+pred_data <- tibble(sex = 0:1) %>%
+    mutate(age = map(row_number(), ~ age_seq)) %>%
+    unnest(age) %>%
+    mutate(bodyweight_kg = map(row_number(), ~ bdywt_seq)) %>%
+    unnest(bodyweight_kg) %>%
+    mutate(equipment = map(row_number(), ~ eqpt_seq)) %>%
+    unnest(equipment)
+
+pred_data
+```
+
+```{r}
+pred_data$m1_pred <- predict(m1_agesex_bdywt_eqpt, newdata = pred_data)
+```
+
+```{r}
+pred_data %>%
+    mutate(sex = ifelse(sex == 0, "F", "M")) %>%
+    ggplot(aes(x = bodyweight_kg, y = m1_pred)) +
+    facet_grid(equipment ~ sex) +
+    geom_point(aes(color = age), size = 0.5, alpha = 0.5) +
+    scale_color_gradient(low = blue, high = red)
+```
+
+### Modeling 2. Mixed-effects model to identify importance of factors with varying intercepts.
+
+```{r}
+library(lme4)
+```
+
+```{r}
+m2 <- lm(
+    best3bench_kg ~ 1 + equipment + sex + age + bodyweight_kg,
+    data = modeling_data1
+)
+summary(m2)
+```
+
+
+```{r}
+m2_me_nameyear <- lmer(
+    best3bench_kg ~ 1 + equipment + sex + age + bodyweight_kg + (1|name) + (1|year),
+    data = modeling_data1
+)
+summary(m2_me_nameyear)
+```
+
+```{r}
+m2_me_name <- lmer(
+    best3bench_kg ~ 1 + equipment + sex + age + bodyweight_kg + (1|name),
+    data = modeling_data1
+)
+summary(m2_me_name)
+```
+
+```{r}
+AIC(m2, m2_me_nameyear, m2_me_name)
+```
+
+```{r}
+m2_me_nameyear_coef <- coef(m2_me_nameyear)
+```
+
+
+```{r}
+as.data.frame(m2_me_nameyear_coef$name) %>%
+    rownames_to_column(var = "name") %>%
+    as_tibble() %>%
+    janitor::clean_names() %>%
+    left_join(modeling_data1 %>% select(name, sex), by = "name") %>%
+    mutate(sex.y = ifelse(sex.y == 0, "F", "M")) %>%
+    ggplot(aes(intercept, color = sex.y, fill = sex.y)) +
+    geom_density(size = 1.2, alpha = 0.3) +
+    scale_color_brewer(palette = "Set1") +
+    scale_fill_brewer(palette = "Set1") +
+    scale_x_continuous(limits = c(-50, 200), expand = c(0, 0)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.02))) +
+    labs(x = "name intercepts",
+         y = "density",
+         title = "Distribution of random effects per lifter",
+         subtitle = "The men have greater variation between individual lifters.",
+         color = "sex", fill = "sex")
+```
+
+```{r}
+as.data.frame(m2_me_nameyear_coef$year) %>%
+    rownames_to_column(var = "year") %>%
+    as_tibble() %>%
+    janitor::clean_names() %>%
+    ggplot(aes(intercept)) +
+    geom_density(fill = "grey50", size = 1.2, alpha = 0.3) +
+    scale_x_continuous(limits = c(30, 120), expand = c(0, 0)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.02))) +
+    labs(x = "name intercepts",
+         y = "density",
+         title = "Distribution of random effects of year",
+         subtitle = "There is some random variation by year of the event.")
+```

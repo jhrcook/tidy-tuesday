@@ -11,6 +11,16 @@ on a new “toy” data set.
 
 ## Log
 
+**June 16, 2020 - International Powerlifting**
+
+[data](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-10-08)
+| [analysis](2020-06-16_international-powerlifting.md)
+
+I spent more time practicing building and understanding mixed-effects
+models.
+
+![](2020-06-16_international-powerlifting_files/figure-gfm/unnamed-chunk-23-1.png)
+
 **June 9, 2020 - Passwords**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-14/readme.md)
