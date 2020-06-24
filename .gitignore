@@ -77,3 +77,4 @@ vignettes/*.pdf
 
 data/*
 .mustashe/*
+.memoise/*
