@@ -11,6 +11,18 @@ on a new “toy” data set.
 
 ## Log
 
+**June 23, 2020 - Caribou Location Tracking**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-23/readme.md)
+| [analysis](2020-06-23_caribou-location-tracking.md)
+
+I used a linear model with varying intercepts for each caribou to model
+the speed of a caribou depending on the season. Without accounting for
+the unique intercept for each caribou, the difference in speed was not
+detectable.
+
+![](2020-06-23_caribou-location-tracking_files/figure-gfm/unnamed-chunk-21-1.png)
+
 **June 16, 2020 - International Powerlifting**
 
 [data](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-10-08)
