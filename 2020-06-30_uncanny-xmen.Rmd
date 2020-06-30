@@ -1,0 +1,198 @@
+---
+title: "Uncanny X-men"
+author: "Joshua Cook"
+date: "June 30, 2020"
+output: github_document
+---
+
+## Setup
+
+TidyTuesday link: https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-30/readme.md
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 400)
+
+library(mustashe)
+library(glue)
+library(magrittr)
+library(ggtext)
+library(RColorBrewer)
+library(pheatmap)
+library(Rtsne)
+library(dbscan)
+library(apcluster)
+library(ggforce)
+library(patchwork)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("setdiff", "dplyr")
+
+blue <- "#5eafe6"
+red <- "#eb5e60"
+light_grey <- "grey80"
+grey <- "grey50"
+dark_grey <- "grey25"
+
+theme_set(theme_minimal())
+
+# To shutup `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+memoise_cache <- memoise::cache_filesystem("./.memoise")
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+xmen_characters <- read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-06-30/characters.csv"
+) %>%
+    janitor::clean_names()
+```
+
+## EDA
+
+```{r}
+naniar::miss_var_summary(xmen_characters)
+```
+```{r}
+xmen_issue_data <- xmen_characters %>%
+    select(issue:number_of_kills_non_humans, 
+           visible_tears_number_of_intances, 
+           depicted_eating_food)
+xmen_issue_data
+```
+
+```{r}
+xmen_issue_data %>%
+    count(issue, character) %>%
+    filter(n > 1)
+```
+
+```{r}
+xmen_data <- xmen_issue_data %>%
+    select(-issue) %>%
+    group_by(character) %>%
+    summarise_if(is.numeric, sum) %>%
+    ungroup()
+
+xmen_data
+```
+```{r}
+stash("stat_correlations", depends_on = "xmen_data", {
+    stat_correlations <- expand.grid(colnames(xmen_data)[-1], 
+                                     colnames(xmen_data)[-1]) %>%
+        as_tibble() %>%
+        set_names("stat_1", "stat_2") %>%
+        mutate(correlation = map2_dbl(stat_1, stat_2, function(x, y) {
+            cor(xmen_data[x], xmen_data[y])
+        }))
+})
+```
+
+```{r}
+hm_data <- stat_correlations %>%
+    pivot_wider(stat_1, names_from = stat_2, values_from = correlation) %>%
+    as.data.frame() %>%
+    column_to_rownames("stat_1")
+
+colnames(hm_data) <- str_replace_all(colnames(hm_data), "_", " ")
+rownames(hm_data) <- str_replace_all(rownames(hm_data), "_", " ")
+
+hm_pal <- c(
+    "#71cfeb",
+    "#e8faff",
+    colorRampPalette(c("#ede353", "#eda853", "#ed5353"))(5)
+)
+
+pheatmap(hm_data,
+         color = hm_pal, #colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(7),
+         border_color = NA,
+         treeheight_row = 30,
+         treeheight_col = 30,
+         main = "Correlations between character measurements")
+```
+
+## Clustering
+
+```{r}
+tsne_input_df <- xmen_data %>%
+    as.data.frame() %>%
+    column_to_rownames("character") %>%
+    as.matrix()
+
+set.seed(0)
+xmen_tsne <- Rtsne(tsne_input_df, initial_dims = 10, perplexity = 5)
+
+xmen_tsne$Y %>%
+    as_tibble() %>%
+    mutate(character = xmen_data$character,
+           character = str_remove(character, " =.+"),
+           character = str_remove(character, "\\(.+")) %>%
+    ggplot(aes(V1, V2)) +
+    geom_text(aes(label = character), size = 3) +
+    labs(x = "t-SNE 1", y = "t-SNE 2",
+         title = "tSNE plot of characters")
+```
+
+```{r}
+set.seed(0)
+kNNdistplot(tsne_input_df, k = 3)
+```
+
+
+```{r}
+set.seed(0)
+xmen_dbscan <- dbscan(tsne_input_df, eps = 10, minPts = 3)
+print(xmen_dbscan)
+```
+
+```{r}
+set.seed(0)
+xmen_afincls <- apcluster(negDistMat(r = 2), tsne_input_df)
+print(xmen_afincls)
+```
+
+```{r}
+xmen_afincls@clusters
+```
+
+```{r}
+afincls_df <- tibble(cluster = 1:length(xmen_afincls@clusters)) %>%
+    mutate(character = map(xmen_afincls@clusters, ~ names(.x))) %>%
+    unnest(character)
+
+xmen_tsne$Y %>%
+    as_tibble() %>%
+    mutate(character = xmen_data$character) %>%
+    left_join(afincls_df, by = "character") %>%
+    mutate(character = str_remove(character, " =.+"),
+           character = str_remove(character, "\\(.+")) %>%
+    ggplot(aes(V1, V2)) +
+    geom_hline(yintercept = 0, lty = 2, color = "grey50", size = 0.7) +
+    geom_vline(xintercept = 0, lty = 2, color = "grey50", size = 0.7) +
+    geom_mark_hull(aes(fill = factor(cluster)), 
+                   alpha = 0.1, color = NA, 
+                   expand = unit(6, "mm")) +
+    geom_text(aes(label = character, color = factor(cluster)), 
+              size = 3, family = "Arial", fontface = "bold") +
+    scale_color_brewer(palette = "Dark2") +
+    scale_fill_brewer(palette = "Dark2") +
+    scale_x_continuous(expand = expansion(mult = c(0.04, 0.06))) +
+    theme(
+        plot.title = element_markdown(),
+        plot.subtitle = element_markdown(),
+        plot.caption = element_markdown()
+    ) +
+    labs(x = "t-SNE 1", y = "t-SNE 2", 
+         color = "AP cluster", fill = "AP cluster",
+         title = "*t*-SNE plot of X-Men characters colored by Affinity Propagation clusters",
+         subtitle = "*t*-SNE was performed using the 'Rtsne' package.<br>Affinity propagation was performed using the 'apcluster' package.",
+         caption = "*t*-SNE was performed on the top 10 principal components with perplexity of 5.<br>Affinity propagation used mutually pairwise negative distance similarity.")
+```
+

@@ -13,6 +13,15 @@ on a new “toy” data set.
 
 **June 23, 2020 - Caribou Location Tracking**
 
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-30/readme.md)
+| [analysis](2020-06-30_uncanny-xmen.md)
+
+I played around with using DBSCAN and Affinity Propagration clustering.
+
+![](2020-06-30_uncanny-xmen_files/figure-gfm/unnamed-chunk-13-1.png)
+
+**June 23, 2020 - Caribou Location Tracking**
+
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-23/readme.md)
 | [analysis](2020-06-23_caribou-location-tracking.md)
 
