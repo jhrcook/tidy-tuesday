@@ -1,0 +1,248 @@
+---
+title: "Uncanny X-men: Bayesian take on Dr. Silge's analysis"
+author: "Joshua Cook"
+date: "June 30, 2020"
+output: github_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 400)
+
+library(mustashe)
+library(glue)
+library(magrittr)
+library(ggtext)
+library(patchwork)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("setdiff", "dplyr")
+
+blue <- "#5eafe6"
+red <- "#eb5e60"
+light_grey <- "grey80"
+grey <- "grey50"
+dark_grey <- "grey25"
+
+theme_set(theme_minimal())
+
+# To shutup `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+memoise_cache <- memoise::cache_filesystem("./.memoise")
+
+set.seed(0)
+```
+
+The other day, Dr. Silge from RStudio posted the [screencast](https://www.youtube.com/watch?v=EIcEAu94sf8&t=1758s) and [blog post](https://juliasilge.com/blog/uncanny-xmen/) of her [`#TidyTuesday`](https://github.com/rfordatascience/tidytuesday) analysis of the Uncanny X-Men data set from [Claremont Run Project](http://www.claremontrun.com/).
+In her analysis, she used logistic regression to model the effect of various features of each comic book issue on the likelihood of the characters to visit the X-Mansion at least once
+She also built a similar model for whether or not the comic book issue passed the [Bechdel test](https://en.wikipedia.org/wiki/Bechdel_test).
+
+One thing that caught my eye was that she used bootstrap resampling to build a distribution of values for each parameter for the models.
+To me, this resembled using Markov Chain Monte Carlo (MCMC) sampling methods for fitting models in Bayesian statistics.
+Therefore, I thought it would be interesting to fit the same logistic model (I only analyzed the first one on visiting X-Mansion) using Bayesian methods and copare the results and interpretations.
+
+
+## Dr. Silge's analysis
+
+The following was taken from Dr. Silge's [blog post](https://juliasilge.com/blog/uncanny-xmen/).
+I provide brief explanations about each step, though more information and explanation can be found in the original article.
+
+### Data preparation
+
+First the data is downloaded from the TidyTuesday GitHub repository and loaded into R.
+
+```{r}
+character_visualization <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-06-30/character_visualization.csv")
+xmen_bechdel <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-06-30/xmen_bechdel.csv")
+locations <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-06-30/locations.csv")
+```
+
+Dr. Silge first created the `per_issue` data frame that is a aggregation over all of the main characters summarizing number of speech bubbles (`speech`), number of thought bubbles (`thought`), number of times the characters were involved in narrative statements (`narrative`), and the total number of depictions (`depicted`) in each issue.
+
+```{r}
+per_issue <- character_visualization %>%
+    group_by(issue) %>%
+    summarise(across(speech:depicted, sum)) %>%
+    ungroup()
+
+per_issue
+```
+
+She also made the `x_mansion` data frame which just says whether each issue visited the X-Mansion at least once and then joined that with `per_issue` to create `locations_joined`.
+
+```{r}
+x_mansion <- locations %>%
+    group_by(issue) %>%
+    summarise(mansion = "X-Mansion" %in% location)
+
+locations_joined <- per_issue %>%
+    inner_join(x_mansion)
+```
+
+### Modeling 
+
+To get a distribution of parameter estimates, Dr. Silge bootstrapped 1,000 versions of `locations_joined` and fit a separate logistic model to each.
+She then extracted the coefficients of each model and used the percentile interval method (`int_pctl()`) to gather estimates and confidence intervals for the bootstraps.
+
+```{r}
+library(tidymodels)
+set.seed(123)
+boots <- bootstraps(locations_joined, times = 1000, apparent = TRUE)
+
+boot_models <- boots %>%
+    mutate(
+        model = map(
+            splits,
+            ~ glm(mansion ~ speech + thought + narrative + depicted,
+                  family = "binomial", data = analysis(.)
+            )
+        ),
+        coef_info = map(model, tidy)
+    )
+
+boot_coefs <- boot_models %>%
+    unnest(coef_info)
+
+int_pctl(boot_models, coef_info)
+```
+
+The boostrapped distributions are shown below.
+
+```{r}
+boot_coefs %>%
+    filter(term != "(Intercept)") %>%
+    mutate(term = fct_inorder(term)) %>%
+    ggplot(aes(estimate, fill = term)) +
+    geom_vline(
+        xintercept = 0, color = "gray50",
+        alpha = 0.6, lty = 2, size = 1.5
+    ) +
+    geom_histogram(alpha = 0.8, bins = 25, show.legend = FALSE) +
+    facet_wrap(~term, scales = "free") +
+    labs(
+        title = "Which issues contain the X-Mansion as a location?",
+        subtitle = "Comparing the top 25 characters' speech, thought, narrative portrayal, and total depictions",
+        caption = "Data from the Claremont Run Project"
+    )
+```
+
+## The Bayesian way
+
+Bayesian modeling is the practice of updating our prior beliefs using observed data to produce a probability distribtion for the values of unknown parameters.
+Thus, unlike the single point-estimates provided by "frequentist" approaches, the results of a Bayesian analysis are the distributions of estimated parameters.
+This is why Dr. Silge's bootstrapping analysis reminded by of Bayesian regression modeling.
+
+### The libraries
+
+The ['rstanarm'](https://mc-stan.org/rstanarm/index.html) package was used to fit the model, and ['tidybayes'](https://mjskay.github.io/tidybayes/), ['bayestestR'](https://easystats.github.io/bayestestR/), and ['see'](https://easystats.github.io/see/) were used for investigating the model's estimates ('bayestestR' and 'see' are both from the ['easystats'](https://github.com/easystats/easystats) suite of packages).
+
+```{r, message=FALSE, warning=FALSE}
+library(rstanarm)
+library(tidybayes)
+library(bayestestR)
+library(see)
+```
+
+### Fitting the model
+
+The `stan_glm()` function is the 'rstanarm' equivalent of `glm()`.
+The only addition parameters to include are the prior distributions for the predictor coefficients and intercept.
+Here, I kept it simple by using normal distributions that were not very biased.
+A thorough analysis would include a section where the impact of different prior distributions would be assessed.
+
+```{r}
+bayes_mansion <- stan_glm(
+    mansion ~ speech + thought + narrative + depicted,
+    family = binomial(link = "logit"), 
+    data = locations_joined,
+    prior = normal(location = 0, scale = 0.5),
+    prior_intercept = normal(location = 0, scale = 3)
+)
+```
+
+### Model evaluation
+
+**STEOPPED HERE**
+
+PD shows that the posterior distributions for `speech` and `depicted` are likely away from 0, but the ROPE suggests that the differences are negligible.
+
+```{r}
+bayestestR::describe_posterior(bayes_mansion)
+```
+
+Intercept is comfortably negative = less likely to be in X-Mansion over all.
+The other distributions are miniscule suggesting they provide little extra information.
+
+```{r}
+plot(bayes_mansion)
+```
+
+HDI confirm the above results.
+
+```{r}
+plot(bayestestR::hdi(bayes_mansion, ci = c(0.5, 0.75, 0.89, 0.95)))
+```
+
+### Posterior predictive checks
+
+Plot the predicted likelihood of being in the X-Mansion or not and plot the distribution separated by if they actually were in the mansion or not.
+Both distributions are comfortably below 0.5 and have a lot of overlap suggesting predictors do not add much extra information.
+
+```{r}
+# From 'rethinking' package.
+logistic <- function (x) {
+    p <- 1/(1 + exp(-x))
+    p <- ifelse(x == Inf, 1, p)
+    return(p)
+}
+
+locations_joined %>%
+    mutate(mansion_predict = logistic(predict(bayes_mansion))) %>%
+    ggplot(aes(x = mansion_predict, color = mansion, fill = mansion)) +
+    geom_density(size = 1.2, alpha = 0.2) +
+    geom_vline(xintercept = 0.5, size = 1.2, lty = 2, color = grey) +
+    scale_color_brewer(palette = "Dark2") +
+    scale_fill_brewer(palette = "Set2") +
+    theme(legend.position = c(0.63, 0.7)) +
+    labs(x = "predicted probability of being in the X-Mansion",
+         y = "probability density",
+         title = "The Bayesian logistic model's predictions",
+         color = "Was in the\nX-mansion",
+         fill = "Was in the\nX-mansion")
+```
+
+```{r}
+pred_data <- locations_joined %>%
+    summarise(across(issue:narrative, mean)) %>%
+    mutate(depicted = list(modelr::seq_range(locations_joined$depicted, n = 100))) %>%
+    unnest(depicted) %>%
+    add_fitted_draws(bayes_mansion, n = 200)
+
+pred_data
+```
+
+```{r}
+locations_joined_mod <- locations_joined %>%
+    mutate(mansion_num = as.numeric(mansion) + ifelse(mansion, -0.1, 0.1))
+    
+
+pred_data %>%
+    ggplot(aes(x = depicted, y = .value)) +
+    geom_line(aes(group = .draw), alpha = 0.1) +
+    geom_jitter(aes(y = mansion_num, color = mansion), 
+                data = locations_joined_mod, 
+                height = 0.08, width = 0,
+                size = 2.2, alpha = 0.5) +
+    scale_color_brewer(palette = "Dark2") +
+    scale_x_continuous(expand = expansion(mult = c(0.02, 0.02))) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 1)) +
+    labs(x = "depicted",
+         y = "probability of being in the X-mansion",
+         color = "was in the\nX-Mansion",
+         title = "Posterior predictions of the effect of the number\nof depictions of the main characters",
+         subtitle = "All other predictors were held constant at their average value.")
+```
+
