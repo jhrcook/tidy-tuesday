@@ -1,4 +1,4 @@
-Uncanny X-men: Bayesian take on Dr. Silge’s analysis
+Uncanny X-Men: Bayesian take on Dr. Silge’s analysis
 ================
 Joshua Cook
 June 30, 2020
@@ -11,17 +11,17 @@ analysis of the Uncanny X-Men data set from [Claremont Run
 Project](http://www.claremontrun.com/). In her analysis, she used
 logistic regression to model the effect of various features of each
 comic book issue on the likelihood of the characters to visit the
-X-Mansion at least once She also built a similar model for whether or
+X-Mansion at least once. She also built a similar model for whether or
 not the comic book issue passed the [Bechdel
 test](https://en.wikipedia.org/wiki/Bechdel_test).
 
-One thing that caught my eye was that she used bootstrap resampling to
+One thing that caught my eye was that she used bootstrap re-sampling to
 build a distribution of values for each parameter for the models. To me,
 this resembled using Markov Chain Monte Carlo (MCMC) sampling methods
 for fitting models in Bayesian statistics. Therefore, I thought it would
 be interesting to fit the same logistic model (I only analyzed the first
-one on visiting X-Mansion) using Bayesian methods and copare the results
-and interpretations.
+one on visiting the X-Mansion) using Bayesian methods and compare the
+results and interpretations.
 
 ## Dr. Silge’s analysis
 
@@ -32,7 +32,7 @@ can be found in the original article.
 
 ### Data preparation
 
-First the data is downloaded from the TidyTuesday GitHub repository and
+First the data was downloaded from the TidyTuesday GitHub repository and
 loaded into R.
 
 ``` r
@@ -128,18 +128,6 @@ percentile interval method (`int_pctl()`) to gather estimates and
 confidence intervals for the bootstraps.
 
 ``` r
-library(tidymodels)
-```
-
-    #> ── Attaching packages ─────────────────────────────────────────────────────────────── tidymodels 0.1.0 ──
-
-    #> ✓ broom     0.7.0.9000     ✓ rsample   0.0.6     
-    #> ✓ dials     0.0.6          ✓ tune      0.1.0     
-    #> ✓ infer     0.5.1          ✓ workflows 0.1.1     
-    #> ✓ parsnip   0.1.1          ✓ yardstick 0.0.6     
-    #> ✓ recipes   0.1.12
-
-``` r
 set.seed(123)
 boots <- bootstraps(locations_joined, times = 1000, apparent = TRUE)
 
@@ -191,6 +179,8 @@ boot_coefs %>%
 
 ![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
+-----
+
 ## The Bayesian way
 
 Bayesian modeling is the practice of updating our prior beliefs using
@@ -202,8 +192,14 @@ bootstrapping analysis reminded by of Bayesian regression modeling.
 
 ### The libraries
 
-The ‘rstanarm’ pacakge was used to fit the models, and ‘tidybayes’,
-‘bayestestR’, and ‘see’
+The [‘rstanarm’](https://mc-stan.org/rstanarm/index.html) package was
+used to fit the model, and
+[‘tidybayes’](https://mjskay.github.io/tidybayes/),
+[‘bayestestR’](https://easystats.github.io/bayestestR/), and
+[‘see’](https://easystats.github.io/see/) were used for
+investigating the model’s estimates (‘bayestestR’ and ‘see’ are both
+from the [‘easystats’](https://github.com/easystats/easystats) suite of
+packages).
 
 ``` r
 library(rstanarm)
@@ -211,6 +207,15 @@ library(tidybayes)
 library(bayestestR)
 library(see)
 ```
+
+### Fitting the model
+
+The `stan_glm()` function is the ‘rstanarm’ equivalent of `glm()`. The
+only additional arguments to include are the prior distributions for the
+predictor coefficients and intercept. Here, I kept it simple by using
+normal distributions that were not too biased. A thorough analysis would
+include a section where the impact of different prior distributions
+would be assessed.
 
 ``` r
 bayes_mansion <- stan_glm(
@@ -225,8 +230,8 @@ bayes_mansion <- stan_glm(
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 1).
     #> Chain 1: 
-    #> Chain 1: Gradient evaluation took 0.000153 seconds
-    #> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.53 seconds.
+    #> Chain 1: Gradient evaluation took 0.000213 seconds
+    #> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 2.13 seconds.
     #> Chain 1: Adjust your expectations accordingly!
     #> Chain 1: 
     #> Chain 1: 
@@ -243,15 +248,15 @@ bayes_mansion <- stan_glm(
     #> Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 1: 
-    #> Chain 1:  Elapsed Time: 0.270786 seconds (Warm-up)
-    #> Chain 1:                0.17146 seconds (Sampling)
-    #> Chain 1:                0.442246 seconds (Total)
+    #> Chain 1:  Elapsed Time: 0.22106 seconds (Warm-up)
+    #> Chain 1:                0.172703 seconds (Sampling)
+    #> Chain 1:                0.393763 seconds (Total)
     #> Chain 1: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 2).
     #> Chain 2: 
-    #> Chain 2: Gradient evaluation took 8.6e-05 seconds
-    #> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.86 seconds.
+    #> Chain 2: Gradient evaluation took 6.3e-05 seconds
+    #> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.63 seconds.
     #> Chain 2: Adjust your expectations accordingly!
     #> Chain 2: 
     #> Chain 2: 
@@ -268,15 +273,15 @@ bayes_mansion <- stan_glm(
     #> Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 2: 
-    #> Chain 2:  Elapsed Time: 0.271705 seconds (Warm-up)
-    #> Chain 2:                0.210377 seconds (Sampling)
-    #> Chain 2:                0.482082 seconds (Total)
+    #> Chain 2:  Elapsed Time: 0.188406 seconds (Warm-up)
+    #> Chain 2:                0.310647 seconds (Sampling)
+    #> Chain 2:                0.499053 seconds (Total)
     #> Chain 2: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 3).
     #> Chain 3: 
-    #> Chain 3: Gradient evaluation took 3.8e-05 seconds
-    #> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.38 seconds.
+    #> Chain 3: Gradient evaluation took 5.3e-05 seconds
+    #> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.53 seconds.
     #> Chain 3: Adjust your expectations accordingly!
     #> Chain 3: 
     #> Chain 3: 
@@ -293,15 +298,15 @@ bayes_mansion <- stan_glm(
     #> Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 3: 
-    #> Chain 3:  Elapsed Time: 0.164779 seconds (Warm-up)
-    #> Chain 3:                0.222833 seconds (Sampling)
-    #> Chain 3:                0.387612 seconds (Total)
+    #> Chain 3:  Elapsed Time: 0.159436 seconds (Warm-up)
+    #> Chain 3:                0.220296 seconds (Sampling)
+    #> Chain 3:                0.379732 seconds (Total)
     #> Chain 3: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 4).
     #> Chain 4: 
-    #> Chain 4: Gradient evaluation took 1.7e-05 seconds
-    #> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.17 seconds.
+    #> Chain 4: Gradient evaluation took 1.5e-05 seconds
+    #> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.15 seconds.
     #> Chain 4: Adjust your expectations accordingly!
     #> Chain 4: 
     #> Chain 4: 
@@ -318,14 +323,65 @@ bayes_mansion <- stan_glm(
     #> Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 4: 
-    #> Chain 4:  Elapsed Time: 0.153558 seconds (Warm-up)
-    #> Chain 4:                0.202304 seconds (Sampling)
-    #> Chain 4:                0.355862 seconds (Total)
+    #> Chain 4:  Elapsed Time: 0.169659 seconds (Warm-up)
+    #> Chain 4:                0.129054 seconds (Sampling)
+    #> Chain 4:                0.298713 seconds (Total)
     #> Chain 4:
 
-PD shows that the posterior distributions for `speech` and `depicted`
-are likely away from 0, but the ROPE suggests that the differences are
-negligible.
+### Model evaluation
+
+Now that the model is fit, the next step is to inspect the posterior
+distributions of the coefficients.
+
+``` r
+plot(bayes_mansion, prob = 0.50, prob_outer = 0.89)
+```
+
+![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+Each dot represents the mean of the posterior distribution for the
+coefficient along with the 50% and 89% density intervals. We can see
+that the intercept is quite large and negative, indicating that, on
+average, the X-Men tended to not visit the X-Mansion. Comparably, the
+distributions for the other coefficients are very small and located
+close to 0. This suggests that they do not poses much additional
+information on whether or not the X-Men visited the X-Mansion.
+
+Another useful plot in Bayesian analysis is of the Highest Density
+Interval (HDI), the smallest range of parameter values that hold a given
+density of the distribution. With the 89% HDI for a posterior
+distribution, we can say that, given the structure of the model and
+observed data, there is an 89% chance that the real parameter value lies
+within the range. This is one method for understanding the confidence of
+the estimated value.
+
+``` r
+plot(bayestestR::hdi(bayes_mansion, ci = c(0.5, 0.75, 0.89, 0.95)))
+```
+
+![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+From the HDI shown above, we can see that the coefficients for the
+number of speech bubles (`speech`) and number of times the characters
+were depicted `depicted` in an issue were the strongest predictors. The
+89% HDI for `speech` includes 0 while the 95% HDI for `depicted`
+includes 0. Therefore, none of these posterior distributions are
+particularly exciting as they are all very small (in conjunction with a
+strong intercept) and have a fair chance of actually being 0.
+
+Two other measurements that are useful for Bayesian analysis are the
+*propbability of direction* (PD) and the *region of practical
+equivalence* (ROPE). Without going too in-depth, the PD is the
+probability that a parameter is positive or negative. It ranges from 0.5
+to 1, a value of 1 indicates it is definitely positive or negative
+(i.e. non-zero). The ROPE is a similar value but accounts for effect
+size by measuring how much of the posterior distribution lies within a
+region that we (the analysts) would say is effectively zero. Thus, if
+the ROPE is high, then it is unlikely that the parameter’s value has
+much importance.
+
+The following table provides a summary of the posterior distributions
+for this model.
 
 ``` r
 bayestestR::describe_posterior(bayes_mansion)
@@ -343,31 +399,28 @@ bayestestR::describe_posterior(bayes_mansion)
     #> narrative   |  0.004 | [-0.005,  0.013] | 0.771 | [-0.181, 0.181] |       100 | 1.000 | 3264.987
     #> depicted    |  0.007 | [ 0.001,  0.014] | 0.961 | [-0.181, 0.181] |       100 | 1.000 | 2219.555
 
-Intercept is comfortably negative = less likely to be in X-Mansion over
-all. The other distributions are miniscule suggesting they provide
-little extra information.
+We can see that even though the PD for `speech` and `depicted` are close
+to 1.0 indicating they are likely non-zero, the “% in ROPE” is 100%
+suggesting the differences are unimportant.
+
+### Posterior predictive checks
+
+The last step of this analysis is to make predictions using the model.
+First, we can make predictions on the provided data to see how well the
+model fit the data. Second, we can input new data points that are
+interesting to us to see how they impact the model’s predictions.
+
+The plot below shows the distribution of posterior predictions on the
+original data. The plotted values are the predicted probability that the
+X-Mansion was visited in the comic book issue, separated by whether or
+not the X-Mansion was actually visited. The two distributions look
+almost identical. This is not surprising because the coefficients fit to
+the variables were so small, they do not provide much additional
+information for the prediction. Therefore, the model is primarily
+relying upon the intercept to calculate an estimate.
 
 ``` r
-plot(bayes_mansion)
-```
-
-![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
-
-HDI confirm the above results.
-
-``` r
-plot(bayestestR::hdi(bayes_mansion, ci = c(0.5, 0.75, 0.89, 0.95)))
-```
-
-![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
-
-Plot the predicted likelihood of being in the X-Mansion or not and plot
-the distribution separated by if they actually were in the mansion or
-not. Both distributions are comfortably below 0.5 and have a lot of
-overlap suggesting predictors do not add much extra information.
-
-``` r
-# From 'rethinking' package.
+# From the 'rethinking' package.
 logistic <- function (x) {
     p <- 1/(1 + exp(-x))
     p <- ifelse(x == Inf, 1, p)
@@ -381,15 +434,28 @@ locations_joined %>%
     geom_vline(xintercept = 0.5, size = 1.2, lty = 2, color = grey) +
     scale_color_brewer(palette = "Dark2") +
     scale_fill_brewer(palette = "Set2") +
-    theme(legend.position = c(0.63, 0.7)) +
+    theme(legend.position = c(0.65, 0.73)) +
     labs(x = "predicted probability of being in the X-Mansion",
          y = "probability density",
-         title = "The Bayesian logistic model's predictions",
-         color = "Was in the\nX-mansion",
-         fill = "Was in the\nX-mansion")
+         title = "The Bayesian logistic model's posterior predictions",
+         color = "was in the\nX-mansion",
+         fill = "was in the\nX-mansion")
 ```
 
 ![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
+The second common type of posterior prediction is to make data that
+varies one or two variables and holds the rest of the variables
+constant. Since `depicted` had the largest predicted effect of the
+non-intercept coefficients, I decided to conduct this posterior
+predictive check on the values of this variable. Therefore, I created
+the `pred_data` data frame which has 100 values across the range of
+`depicted` and just the average values for the rest of the variables.
+Making predictions on this artifical data set will show the effect of
+the `depicted` variable while holding the other variables constant.
+
+Using the `add_fitted_draws()` function from ‘tidybayes’, 200
+predictions were made for the artificial data.
 
 ``` r
 pred_data <- locations_joined %>%
@@ -417,7 +483,12 @@ pred_data
     #> 10  189.   143.    44.2      48.7       16     1     NA         NA   154 0.109 
     #> # … with 19,990 more rows
 
+The following plot shows the logistic curves for the artificial data.
+Each curve represents an individual prediction over the range of
+`depicted` values. The original data is also plotted on top.
+
 ``` r
+# Just to shift the `mansion` values for plotting purposes.
 locations_joined_mod <- locations_joined %>%
     mutate(mansion_num = as.numeric(mansion) + ifelse(mansion, -0.1, 0.1))
     
@@ -440,3 +511,22 @@ pred_data %>%
 ```
 
 ![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+We can see that there is a general tendency for the model to predict
+that the episode visited the X-Mansion as the value for depicted
+increases, but it is a very gradual sinusoidal curve because the
+posterior distribution was located so close to zero. We can also see how
+the curve is shifted closer to 0 for most values of `depicted`. This is
+because of the strong intercept value.
+
+-----
+
+## Wrapping-up
+
+Overall, I think that is was an interesting comparison between a
+frequentist approach to building a distribution of coefficient values
+and the Bayesian method of analyzing a model. I am not in the position
+to provide a theoretical comparison between the two approaches, though I
+would say that, personally, interpreting the Bayesian posterior
+distribution is more intuitive than interpreting the bootstrapped
+distribution.
