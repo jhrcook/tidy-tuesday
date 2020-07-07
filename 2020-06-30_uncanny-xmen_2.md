@@ -230,8 +230,8 @@ bayes_mansion <- stan_glm(
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 1).
     #> Chain 1: 
-    #> Chain 1: Gradient evaluation took 0.000213 seconds
-    #> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 2.13 seconds.
+    #> Chain 1: Gradient evaluation took 0.000744 seconds
+    #> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 7.44 seconds.
     #> Chain 1: Adjust your expectations accordingly!
     #> Chain 1: 
     #> Chain 1: 
@@ -248,15 +248,15 @@ bayes_mansion <- stan_glm(
     #> Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 1: 
-    #> Chain 1:  Elapsed Time: 0.22106 seconds (Warm-up)
-    #> Chain 1:                0.172703 seconds (Sampling)
-    #> Chain 1:                0.393763 seconds (Total)
+    #> Chain 1:  Elapsed Time: 0.26208 seconds (Warm-up)
+    #> Chain 1:                0.297734 seconds (Sampling)
+    #> Chain 1:                0.559814 seconds (Total)
     #> Chain 1: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 2).
     #> Chain 2: 
-    #> Chain 2: Gradient evaluation took 6.3e-05 seconds
-    #> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.63 seconds.
+    #> Chain 2: Gradient evaluation took 5e-05 seconds
+    #> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.5 seconds.
     #> Chain 2: Adjust your expectations accordingly!
     #> Chain 2: 
     #> Chain 2: 
@@ -273,15 +273,15 @@ bayes_mansion <- stan_glm(
     #> Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 2: 
-    #> Chain 2:  Elapsed Time: 0.188406 seconds (Warm-up)
-    #> Chain 2:                0.310647 seconds (Sampling)
-    #> Chain 2:                0.499053 seconds (Total)
+    #> Chain 2:  Elapsed Time: 0.242379 seconds (Warm-up)
+    #> Chain 2:                0.171993 seconds (Sampling)
+    #> Chain 2:                0.414372 seconds (Total)
     #> Chain 2: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 3).
     #> Chain 3: 
-    #> Chain 3: Gradient evaluation took 5.3e-05 seconds
-    #> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.53 seconds.
+    #> Chain 3: Gradient evaluation took 1.7e-05 seconds
+    #> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.17 seconds.
     #> Chain 3: Adjust your expectations accordingly!
     #> Chain 3: 
     #> Chain 3: 
@@ -298,15 +298,15 @@ bayes_mansion <- stan_glm(
     #> Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 3: 
-    #> Chain 3:  Elapsed Time: 0.159436 seconds (Warm-up)
-    #> Chain 3:                0.220296 seconds (Sampling)
-    #> Chain 3:                0.379732 seconds (Total)
+    #> Chain 3:  Elapsed Time: 0.216291 seconds (Warm-up)
+    #> Chain 3:                0.275669 seconds (Sampling)
+    #> Chain 3:                0.49196 seconds (Total)
     #> Chain 3: 
     #> 
     #> SAMPLING FOR MODEL 'bernoulli' NOW (CHAIN 4).
     #> Chain 4: 
-    #> Chain 4: Gradient evaluation took 1.5e-05 seconds
-    #> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.15 seconds.
+    #> Chain 4: Gradient evaluation took 3.9e-05 seconds
+    #> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.39 seconds.
     #> Chain 4: Adjust your expectations accordingly!
     #> Chain 4: 
     #> Chain 4: 
@@ -323,9 +323,9 @@ bayes_mansion <- stan_glm(
     #> Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     #> Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
     #> Chain 4: 
-    #> Chain 4:  Elapsed Time: 0.169659 seconds (Warm-up)
-    #> Chain 4:                0.129054 seconds (Sampling)
-    #> Chain 4:                0.298713 seconds (Total)
+    #> Chain 4:  Elapsed Time: 0.205881 seconds (Warm-up)
+    #> Chain 4:                0.155706 seconds (Sampling)
+    #> Chain 4:                0.361587 seconds (Total)
     #> Chain 4:
 
 ### Model evaluation
@@ -442,7 +442,7 @@ locations_joined %>%
          fill = "was in the\nX-mansion")
 ```
 
-![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 The second common type of posterior prediction is to make data that
 varies one or two variables and holds the rest of the variables
@@ -510,7 +510,7 @@ pred_data %>%
          subtitle = "All other predictors were held constant at their average value.")
 ```
 
-![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](2020-06-30_uncanny-xmen_2_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
 
 We can see that there is a general tendency for the model to predict
 that the episode visited the X-Mansion as the value for depicted

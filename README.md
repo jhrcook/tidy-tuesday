@@ -11,7 +11,7 @@ on a new “toy” data set.
 
 ## Log
 
-**June 23, 2020 - Caribou Location Tracking**
+**June 30, 2020 - Uncanny X-men**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-30/readme.md)
 | [analysis](2020-06-30_uncanny-xmen.md)

@@ -184,6 +184,20 @@ This is one method for understanding the confidence of the estimated value.
 plot(bayestestR::hdi(bayes_mansion, ci = c(0.5, 0.75, 0.89, 0.95)))
 ```
 
+```{r, include=FALSE}
+p <- plot(bayestestR::hdi(bayes_mansion, ci = c(0.5, 0.75, 0.89, 0.95))) +
+    theme(legend.position = "none",
+          plot.title = element_blank(),
+          axis.title = element_blank(),
+          axis.text = element_blank())
+ggsave(
+    file.path("2020-06-30_uncanny-xmen_2_files", "featured.png"),
+    p,
+    width = 6, height = 6, dpi = 500
+)
+```
+
+
 From the HDI shown above, we can see that the coefficients for the number of speech bubles (`speech`) and number of times the characters were depicted `depicted` in an issue were the strongest predictors.
 The 89% HDI for `speech` includes 0 while the 95% HDI for `depicted` includes 0.
 Therefore, none of these posterior distributions are particularly exciting as they are all very small (in conjunction with a strong intercept) and have a fair chance of actually being 0.
