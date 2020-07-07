@@ -11,6 +11,17 @@ on a new “toy” data set.
 
 ## Log
 
+**July 7, 2020 - Coffee Ratings**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md)
+| [analysis](2020-07-07_coffee-ratings.md)
+
+I practiced linear modeling by building a couple of models including a
+logistic regression of the bean processing method regressed on flavor
+metrics.
+
+![](2020-07-07_coffee-ratings_files/figure-gfm/unnamed-chunk-16-1.png)
+
 **June 30, 2020 - Uncanny X-men**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-30/readme.md)
