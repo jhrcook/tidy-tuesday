@@ -1,0 +1,283 @@
+---
+title: "Astronaut database"
+author: "Joshua Cook"
+date: "July 14, 2020"
+output: github_document
+---
+    
+## Setup
+    
+TidyTuesday link: [2020/2020-07-14/readme.md](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-14/readme.md)
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 400)
+
+library(mustashe)
+library(glue)
+library(magrittr)
+library(ggtext)
+library(ggforce)
+library(patchwork)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("setdiff", "dplyr")
+
+blue <- "#5eafe6"
+dark_blue <- "#408ec2"
+red <- "#eb5e60"
+light_grey <- "grey80"
+grey <- "grey50"
+dark_grey <- "grey25"
+
+theme_set(theme_minimal())
+
+# To shut-up `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+astronauts <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-14/astronauts.csv") %>%
+    janitor::clean_names()
+```
+
+## EDA
+
+```{r}
+p1 <- astronauts %>%
+    mutate(label = ifelse(eva_hrs_mission > 75, name, NA)) %>%
+    ggplot(aes(x = hours_mission, y = eva_hrs_mission)) +
+    geom_point(color = dark_blue, alpha = 0.5) +
+    geom_text(aes(label = label), nudge_x = 1800, family = "Arial") +
+    labs(x = "duration of mission (hrs.)",
+         y = "time spent on EVA (hrs.)")
+
+p2 <- astronauts %>%
+    ggplot(aes(x = hours_mission)) +
+    geom_density(color = dark_blue, alpha = 0.2, size = 1) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.02))) +
+    theme(axis.title = element_blank(),
+          axis.text.x = element_blank())
+
+p3 <- astronauts %>%
+    ggplot(aes(x = eva_hrs_mission)) +
+    geom_density(color = dark_blue, alpha = 0.2, size = 1) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.02))) +
+    theme(axis.title = element_blank(),
+          axis.text.y = element_blank()) +
+    coord_flip()
+
+
+design = "
+AAAAAA#
+BBBBBBC
+BBBBBBC
+BBBBBBC
+BBBBBBC
+BBBBBBC
+BBBBBBC
+"
+p2 + p1 + p3 + plot_layout(design = design)
+```
+
+```{r}
+astronauts %>% 
+    distinct(name, mission_number, mission_title) %>%
+    count(name, name = "num_missions") %>%
+    ggplot(aes(x = num_missions)) +
+    geom_bar()
+```
+
+## Model
+
+Model the number of missions taken using various features of the astronaut.
+
+```{r}
+library(rstanarm)
+library(bayestestR)
+library(see)
+library(ggmcmc)
+library(tidybayes)
+```
+
+
+```{r}
+d <- astronauts %>% 
+    distinct(total_number_of_missions, 
+             name, year_of_birth, sex, 
+             military_civilian, occupation) %>%
+    mutate(
+        military = military_civilian == "military",
+        male = sex == "male",
+        occupation = str_to_lower(occupation),
+        occupation = fct_lump_min(occupation, 100)
+    ) %>%
+    rename(num_missions = total_number_of_missions)
+```
+
+```{r}
+glue("mean of the number of missions: {round(mean(d$num_missions), 2)}")
+glue("variance of the number of missions: {round(var(d$num_missions), 2)}")
+```
+
+```{r}
+make_missions_barplot <- function(fill_column) {
+    d %>% 
+        ggplot(aes(x = num_missions)) +
+        geom_bar(aes(fill = {{ fill_column }}), position = "dodge")
+}
+
+(make_missions_barplot(male) | 
+    make_missions_barplot(occupation)) /
+    (make_missions_barplot(military) | plot_spacer())
+```
+
+```{r}
+freq_pois_m1 <- glm(
+    num_missions ~ year_of_birth + male + military + occupation,
+    data = d,
+    family = poisson(link = "log")
+)
+
+summary(freq_pois_m1)
+plot(freq_pois_m1)
+```
+
+```{r}
+pred <- predict(freq_pois_m1, type = "response")
+
+d_summary <- d %>%
+    mutate(pred = !!pred) %>%
+    group_by(num_missions, occupation) %>%
+    summarise(pred = mean(pred)) %>%
+    ungroup()
+
+p1 <- d %>%
+    mutate(pred = !!pred) %>%
+    ggplot(aes(x = num_missions, y = pred)) +
+    geom_jitter(aes(color = occupation),
+                width = 0.1, height = 0.1, alpha = 0.5) +
+    geom_line(aes(color = occupation),
+              data = d_summary,
+              size = 1, lty = 2) +
+    scale_color_brewer(palette = "Dark2") +
+    labs(x = "real number of missions",
+         y = "predicted number of missions",
+         title = "Frequentist Poisson regression of number of missions")
+p1
+```
+
+```{r}
+set.seed(0)
+
+bayes_pois_m1 <- stan_glm(
+    num_missions ~ year_of_birth + male + military + occupation,
+    data = d,
+    family = poisson(link = "log"),
+    prior_intercept = normal(),
+    prior = normal(),
+    refresh = 0,
+    cores = 1
+)
+```
+
+```{r}
+summary(bayes_pois_m1)
+```
+
+```{r}
+plot(bayes_pois_m1)
+```
+
+```{r}
+as.data.frame(describe_posterior(bayes_pois_m1))
+```
+
+```{r}
+pred <- predict(bayes_pois_m1, type = "response")
+
+d_summary <- d %>%
+    mutate(pred = !!pred) %>%
+    group_by(num_missions, occupation) %>%
+    summarise(pred = mean(pred)) %>%
+    ungroup()
+
+p2 <- d %>%
+    mutate(pred = !!pred) %>%
+    ggplot(aes(x = num_missions, y = pred)) +
+    geom_jitter(aes(color = occupation),
+                width = 0.1, height = 0.1, alpha = 0.5) +
+    geom_line(aes(color = occupation),
+              data = d_summary,
+              size = 1, lty = 2) +
+    scale_color_brewer(palette = "Dark2") +
+    labs(x = "real number of missions",
+         y = "predicted number of missions",
+         title = "Bayesian Poisson regression of number of missions")
+p2
+```
+
+```{r}
+freq_pred <- predict(freq_pois_m1, type = "response")
+bayes_pred <- predict(bayes_pois_m1, type = "response")
+p3 <- d %>% 
+    mutate(freq = freq_pred,
+           bayes = bayes_pred) %>%
+    ggplot(aes(x = freq, y = bayes)) +
+    geom_point(aes(color = occupation), alpha = 0.5) +
+    scale_color_brewer(palette = "Dark2") +
+    labs(x = "frequentist model prediction",
+         y = "Bayesian model prediciton",
+         title = "Comparison of model predictions")
+p3
+```
+
+```{r}
+p4 <- d %>% 
+    mutate(freq = freq_pred,
+           bayes = bayes_pred,
+           diff_pred = freq - bayes,
+           i = row_number()) %>%
+    ggplot(aes(x = i, y = diff_pred)) +
+    geom_hline(yintercept = 0, lty = 2, color = grey, size = 1.2) +
+    geom_point(aes(color = occupation, shape = sex), alpha = 0.5) +
+    scale_color_brewer(palette = "Dark2") +
+    scale_shape_manual(values = c(17, 16)) +
+    labs(x = "astronuat",
+         y = "difference between model predicitons\n(freq. - Bayes)",
+         title = "Comparison of model predictions")
+p4
+```
+
+```{r}
+coef(freq_pois_m1)
+coef(bayes_pois_m1)
+```
+
+```{r}
+d %>% 
+    mutate(freq = freq_pred,
+           bayes = bayes_pred,
+           diff_pred = freq - bayes,
+           i = row_number()) %>%
+    filter(diff_pred > 0.005)
+```
+
+```{r}
+final_plot <- (p1 | p2) / (p3 | p4)
+
+ggsave(
+    file.path("2020-07-14_astronaut-database_files", 
+              "model-comparison-plots.png"), 
+    final_plot, 
+    width = 11, height = 8.5, units = "in"
+)
+
+final_plot
+```

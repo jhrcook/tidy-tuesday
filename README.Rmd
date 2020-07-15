@@ -17,6 +17,17 @@ library(fontawesome)
 
 ## Log
 
+
+**July 14, 2020 - Astronaut database**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-14/readme.md) | [analysis](2020-07-14_astronaut-database.md)
+
+I compared the same Poisson regression model when fit using frequentist or Bayesian methods.
+
+![](2020-07-14_astronaut-database_files/model-comparison-plots.png)
+
+
+
 **July 7, 2020 - Coffee Ratings**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md) | [analysis](2020-07-07_coffee-ratings.md)
