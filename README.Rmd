@@ -17,6 +17,17 @@ library(fontawesome)
 
 ## Log
 
+**August 4, 2020 - European energy**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-04/readme.md) | [analysis](2020-08-04_european-energy.md)
+
+Today's was a bit of a bust because I tried to do some modeling, but there is not very much data.
+This weeks data set favored those who like to do fancy visualizations.
+
+![](2020-08-04_european-energy_files/figure-gfm/unnamed-chunk-14-1.png)
+
+
+
 **July 28, 2020 - Palmer Penguins**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-28/readme.md) | [analysis](2020-07-28_palmer-penguins.md)

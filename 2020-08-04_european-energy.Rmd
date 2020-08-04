@@ -1,0 +1,207 @@
+---
+title: "European energy"
+author: "Joshua Cook"
+date: "August 4, 2020"
+output: github_document
+---
+    
+## Setup
+    
+TidyTuesday link: [2020/2020-08-04/readme.md](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-04/readme.md)
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 400)
+
+library(mustashe)
+library(glue)
+library(magrittr)
+library(patchwork)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("setdiff", "dplyr")
+
+blue <- "#5eafe6"
+dark_blue <- "#408ec2"
+red <- "#eb5e60"
+light_grey <- "grey80"
+grey <- "grey50"
+dark_grey <- "grey25"
+
+theme_set(theme_minimal())
+
+# To shut-up `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+prep_data <- function(df) {
+    df %>%
+        janitor::clean_names() %>%
+        pivot_longer(x2016:x2018, names_to = "year", values_to = "energy") %>%
+        mutate(year = str_remove(year, "^x"),
+               year = as.numeric(year))
+}
+
+
+energy_types <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-08-04/energy_types.csv") %>%
+    prep_data()
+country_totals <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-08-04/country_totals.csv") %>%
+    prep_data()
+```
+
+## EDA
+
+```{r}
+energy_types %>%
+    filter(level == "Level 1") %>%
+    mutate(country = fct_reorder(country, -energy, .fun = sum)) %>%
+    ggplot(aes(country, energy)) +
+    facet_wrap(~ year, ncol = 1) +
+    geom_col(aes(fill = type)) +
+    scale_fill_brewer(palette = "Set2", guide = guide_legend(nrow = 1)) +
+    theme(
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title.x = element_blank()
+    ) +
+    labs(y = "energy (GWh)",
+         title = "Energy use by country")
+```
+
+```{r}
+energy_types %>%
+    filter(level == "Level 1") %>%
+    ggplot(aes(x = year, y = log(energy))) +
+    facet_wrap(~ type, scales = "free", ncol = 3) +
+    geom_line(aes(color = country, group = paste0(country, "_", type))) +
+    geom_point(aes(color = country)) +
+    scale_color_discrete(guide = guide_legend(nrow = 3)) +
+    theme(
+        legend.position = "bottom"
+    )
+```
+
+```{r}
+energy_types %>%
+    filter(country %in% c("FR")) %>%
+    filter(level == "Level 1") %>%
+    ggplot(aes(x = year, y = log(energy))) +
+    geom_line(aes(color = type, group = paste0(country, "_", type))) +
+    geom_point(aes(color = type)) +
+    scale_color_discrete(guide = guide_legend(nrow = 3)) +
+    theme(
+        legend.position = "bottom"
+    )
+```
+
+
+## Model
+
+```{r}
+library(lme4)
+
+d <- energy_types %>%
+    mutate(year = year - min(year))
+
+m1 <- lmer(energy ~ type + year + (1|country), data = d)
+m2 <- lmer(energy ~ type * year + (1|country), data = d)
+summary(m1)
+summary(m2)
+plot(m1)
+plot(m2)
+AIC(m1, m2)
+```
+
+```{r}
+library(see)
+library(bayestestR)
+library(tidybayes)
+library(rstanarm)
+```
+
+```{r}
+stash("m1_stan", depends_on = "d", {
+    m1_stan <- stan_lmer(energy ~ type + year + (1|country), data = d)
+})
+```
+
+```{r}
+plot(bayestestR::hdi(m1_stan), show_intercept = TRUE)
+```
+
+```{r}
+summary(m2)
+```
+
+```{r}
+stash("m2_stan", depends_on = "d", {
+    m2_stan <- stan_lmer(energy ~ type * year + (1|country), data = d)
+})
+plot(bayestestR::hdi(m2_stan), show_intercept = TRUE)
+```
+
+```{r}
+years <- 1:20
+pred_d <- d %>%
+    distinct(country, type) %>%
+    mutate(year = list(years)) %>%
+    unnest(year)
+
+pred_d %>%
+    filter(country == "ME" & type == "Wind") %>%
+    add_predicted_draws(m2_stan) %>%
+    group_by(year, type, country) %>%
+    summarise(top_89 = quantile(.prediction, 0.89),
+              bottom_89 = quantile(.prediction, 0.11)) %>%
+    ggplot(aes(x = year)) +
+    geom_ribbon(aes(ymin = bottom_89, ymax = top_89, fill = type, color = type),
+                alpha = 0.2)
+```
+
+```{r}
+d2 <- d %>%
+    mutate(
+        type_2 = case_when(
+            type == "Nuclear" ~ "Nuclear",
+            type == "Conventional thermal" ~ "Conventional thermal",
+            TRUE ~ "Renewable"
+        )
+    ) %>% 
+    group_by(country, year, type_2) %>%
+    summarise(energy = sum(energy)) %>%
+    group_by(country, year) %>%
+    mutate(energy_pct = energy / sum(energy)) %>%
+    ungroup()
+```
+
+```{r}
+stash("m3_stan", depends_on = "d2", {
+    m3_stan <- stan_lmer(energy ~ type_2 * year + (1|country), data = d2)
+})
+plot(bayestestR::hdi(m3_stan), show_intercept = TRUE)
+```
+
+```{r}
+years <- 1:20
+pred_d2 <- d2 %>%
+    distinct(country, type_2) %>%
+    mutate(year = list(years)) %>%
+    unnest(year)
+
+pred_d2 %>%
+    filter(country == "FR") %>%
+    add_predicted_draws(m3_stan) %>%
+    median_hdi(.width = 0.89) %>%
+    ggplot(aes(x = year)) +
+    geom_ribbon(aes(ymin = .lower, ymax = .upper, fill = type_2, color = type_2),
+                alpha = 0.2)
+```
+
+
