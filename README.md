@@ -13,6 +13,15 @@ on a new “toy” data set.
 Log
 ---
 
+**August 11, 2020 - Avatar: The Last Airbender**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-11/readme.md)
+\| [analysis](2020-08-11_avatar.md)
+
+I experimented with prior predictive checks with this week’s data set.
+
+![](2020-08-11_avatar_files/compare-priors-v-post.png)
+
 **August 4, 2020 - European energy**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-04/readme.md)

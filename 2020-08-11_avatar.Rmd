@@ -17,6 +17,7 @@ library(jhcutils)
 library(glue)
 library(magrittr)
 library(patchwork)
+library(ggridges)
 library(tidyverse)
 library(conflicted)
 
@@ -144,6 +145,8 @@ avatar_word_counts %>%
     scale_size_continuous(range = c(1, 4))
 ```
 
+### Model 1
+
 ```{r}
 m1_priors <- stan_glm(
     imdb_rating ~ 1 + episode_num,
@@ -163,8 +166,7 @@ plot(m1_priors)
 ```
 
 ```{r}
-plot(bayestestR::hdi(m1_priors, ci = c(0.5, 0.75, 0.89, 0.95)), 
-     show_intercept = TRUE)
+plot(bayestestR::hdi(m1_priors, ci = c(0.5, 0.75, 0.89, 0.95)))
 ```
 
 
@@ -195,8 +197,7 @@ plot(m1_fit)
 ```
 
 ```{r}
-plot(bayestestR::hdi(m1_fit, ci = c(0.5, 0.75, 0.89, 0.95)), 
-     show_intercept = TRUE)
+plot(bayestestR::hdi(m1_fit, ci = c(0.5, 0.75, 0.89, 0.95)))
 ```
 
 ```{r}
@@ -213,7 +214,7 @@ d %>%
     scale_fill_brewer(palette = "Greys")
 ```
 
-### Model with character word counts
+### Model 2
 
 ```{r}
 m2_priors <- stan_glm(
@@ -245,5 +246,109 @@ d %>%
     ggplot(aes(x = Aang, y = .prediction)) +
     stat_lineribbon() +
     scale_fill_brewer(palette = "Greys")
+```
+
+### Model 3
+```{r}
+m3_priors <- stan_glmer(
+    imdb_rating ~ 1 + (1 + Aang + Katara + Sokka + Iroh + Zuko + Azula + Toph | book),
+    data = d,
+    family = gaussian(link = "identity"),
+    prior = normal(location = 0, scale = 0.05),
+    prior_intercept = normal(location = 8, scale = 1),
+    prior_aux = cauchy(),
+    prior_covariance = decov(),
+    prior_PD = TRUE,
+    cores = 1,
+    refresh = 0
+)
+```
+
+```{r}
+plot_intercepts <- function(m) {
+    m %>%
+        spread_draws(`(Intercept)`, b[g,t]) %>%
+        filter(g == "(Intercept)") %>%
+        mutate(book = str_remove(t, "book:")) %>%
+        ggplot(aes(x = `(Intercept)` + b)) +
+        geom_density_ridges(aes(y = book, color = book, fill = book), 
+                                      alpha = 0.15, size = 1) +
+        scale_color_brewer(palette = "Set2") +
+        scale_fill_brewer(palette = "Set2") +
+        scale_x_continuous(limits = c(4, 12), expand = c(0, 0)) +
+        theme(legend.position = "none") +
+        labs(x = "value",
+             y = "varying intercept")
+}
+
+plot_intercepts(m3_priors) +
+    ggtitle("Prior")
+```
+
+```{r}
+plot_varying_slopes <- function(m) {
+    m %>%
+        spread_draws(`(Intercept)`, b[g,t]) %>%
+        mutate(book = str_remove(t, "book:")) %>%
+        filter(g != "(Intercept)") %>%
+        ggplot(aes(x = b)) +
+        geom_density_ridges(aes(y = g, color = book, fill = book),
+                            alpha = 0.15, size = 1) +
+        scale_x_continuous(limits = c(-0.3, 0.3), expand = c(0, 0)) +
+        scale_color_brewer(palette = "Set2") +
+        scale_fill_brewer(palette = "Set2") +
+        labs(x = "value",
+             y = NULL,
+             color = "book",
+             fill = "book")
+}
+
+plot_varying_slopes(m3_priors)
+```
+
+```{r}
+stash("m3_fit", depends_on = "d", {
+    m3_fit <- stan_glmer(
+        imdb_rating ~ 1 + (1 + Aang + Katara + Sokka + Iroh + Zuko + Azula + Toph | book),
+        data = d,
+        family = gaussian(link = "identity"),
+        prior = normal(location = -0.1, scale = 2),
+        prior_intercept = normal(location = 8, scale = 1),
+        prior_aux = cauchy(),
+        prior_covariance = decov(),
+        prior_PD = FALSE,
+        adapt_delta = 0.999,
+        cores = 1,
+        refresh = 0
+    )
+})
+```
+
+```{r}
+plot_intercepts(m3_fit) +
+    ggtitle("Posterior")
+```
+
+```{r}
+plot_varying_slopes(m3_fit)
+```
+
+#### Comparing prior and posteriors
+
+```{r}
+prior_intercept_p <- plot_intercepts(m3_priors) +
+    ggtitle("Prior")
+post_intercept_p <- plot_intercepts(m3_fit) +
+    ggtitle("Posterior")
+
+prior_slopes_p <- plot_varying_slopes(m3_priors) 
+post_slopes_p <- plot_varying_slopes(m3_fit) 
+
+p <- (prior_intercept_p | prior_slopes_p) / (post_intercept_p | post_slopes_p) +
+    plot_layout(widths = c(2, 3))
+ggsave(file.path("2020-08-11_avatar_files", "compare-priors-v-post.png"),
+       plot = p,
+       width = 10, height = 8, dpi = 400)
+p
 ```
 
