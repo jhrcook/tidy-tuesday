@@ -1,0 +1,249 @@
+---
+title: "Avatar: The Last Airbender"
+author: "Joshua Cook"
+date: "August 11, 2020"
+output: github_document
+---
+    
+## Setup
+    
+TidyTuesday link: [2020/2020-08-11/readme.md](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-11/readme.md)
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 400)
+
+library(mustashe)
+library(jhcutils)
+library(glue)
+library(magrittr)
+library(patchwork)
+library(tidyverse)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("setdiff", "dplyr")
+
+blue <- "#5eafe6"
+dark_blue <- "#408ec2"
+red <- "#eb5e60"
+light_grey <- "grey80"
+grey <- "grey50"
+dark_grey <- "grey25"
+
+theme_set(theme_minimal())
+
+# To shut-up `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+avatar <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-08-11/avatar.csv") %>%
+    janitor::clean_names()
+```
+
+## EDA
+
+```{r}
+avatar %>%
+    distinct(book_num, chapter_num, imdb_rating) %>%
+    mutate(i = row_number()) %>%
+    ggplot(aes(i, imdb_rating, color = factor(book_num))) +
+    geom_line(alpha = 0.5) +
+    geom_point() +
+    geom_smooth(method = "lm", formula = "y ~ x", alpha = 0.2) +
+    labs(x = "episode number",
+         y = "IMDB rating",
+         color = "book",
+         title = "Ratings per episode")
+```
+
+```{r}
+character_episode_line_counts <- avatar %>%
+    mutate(book = fct_inorder(book)) %>%
+    count(book, chapter_num, character) %>%
+    group_by(character) %>%
+    filter(sum(n) > 200) %>%
+    ungroup() %>%
+    filter(character != "Scene Description") %>%
+    mutate(character = fct_reorder(character, -n, .fun = sum))
+
+character_episode_line_counts %>%
+    ggplot(aes(x = chapter_num, y = n, color = character)) +
+    facet_grid(character ~ book) +
+    geom_line(alpha = 0.3) +
+    geom_point()
+```
+
+```{r}
+top_characters <- unique(character_episode_line_counts$character)
+
+avatar %>%
+    filter(character %in% as.character(top_characters)) %>%
+    mutate(character = factor(character, levels = levels(top_characters)),
+           book = fct_inorder(book)) %>%
+    filter(!is.na(character_words)) %>%
+    mutate(num_words = map_int(character_words, ~ length(unlist(str_split(.x, " "))))) %>%
+    group_by(book, chapter_num, character) %>%
+    summarise(word_count = sum(num_words)) %>%
+    ggplot(aes(x = chapter_num, y = word_count)) +
+    facet_wrap(~ book, nrow = 1, scales = "free_x") +
+    geom_line(aes(color = character), alpha = 0.4, size = 1) +
+    geom_point(aes(color = character))
+```
+
+## Modeling
+
+```{r}
+library(easystats)
+library(tidybayes)
+library(bayesplot)
+library(rstanarm)
+```
+
+```{r}
+episode_number <- avatar %>%
+    distinct(book_num, chapter_num) %>%
+    arrange(book_num, chapter_num) %>%
+    mutate(episode_num = row_number())
+
+avatar_word_counts <- avatar %>%
+    filter(!is.na(imdb_rating)) %>%
+    filter(character %in% levels(top_characters)) %>%
+    filter(!is.na(character_words)) %>%
+    left_join(episode_number, by = c("book_num", "chapter_num")) %>%
+    mutate(word_count = map_dbl(character_words, ~ length(unlist(str_split(.x, " "))))) %>%
+    group_by(imdb_rating, book, book_num, chapter, chapter_num, episode_num, character) %>%
+    summarise(total_wc = sum(word_count)) %>%
+    ungroup() %>%
+    mutate(log_wc = log(total_wc))
+
+d <- avatar_word_counts %>%
+    pivot_wider(c(imdb_rating, book, book_num, chapter, chapter_num, episode_num, character),
+                names_from = character, values_from = log_wc) %>%
+    arrange(episode_num)
+d[is.na(d)] <- 0
+```
+
+```{r}
+avatar_word_counts %>%
+    ggplot(aes(x = log_wc, y = imdb_rating)) +
+    geom_point(aes(color = character)) +
+    geom_smooth(aes(color = character), method = "lm", formula = "y ~ x", alpha = 0.15)
+```
+
+```{r}
+avatar_word_counts %>%
+    ggplot(aes(x = episode_num, y = log_wc)) +
+    geom_point(aes(color = character, size = imdb_rating, shape = book), 
+               alpha = 0.6) +
+    scale_size_continuous(range = c(1, 4))
+```
+
+```{r}
+m1_priors <- stan_glm(
+    imdb_rating ~ 1 + episode_num,
+    data = d,
+    family = gaussian(link = "identity"),
+    prior = normal(location = 0.01, scale = 1),
+    prior_intercept = normal(location = 8, scale = 2.5),
+    prior_aux = cauchy(),
+    prior_PD = TRUE,
+    refresh = 0,
+    cores = 1
+)
+```
+
+```{r}
+plot(m1_priors)
+```
+
+```{r}
+plot(bayestestR::hdi(m1_priors, ci = c(0.5, 0.75, 0.89, 0.95)), 
+     show_intercept = TRUE)
+```
+
+
+```{r}
+d %>%
+    distinct(episode_num) %>%
+    add_predicted_draws(m1_priors) %>%
+    ggplot(aes(x = episode_num, y = .prediction)) +
+    stat_lineribbon() +
+    scale_fill_brewer(palette = "Greys")
+```
+
+```{r}
+m1_fit <- stan_glm(
+    imdb_rating ~ 1 + episode_num,
+    data = d,
+    family = gaussian(link = "identity"),
+    prior = normal(location = 0.01, scale = 1),
+    prior_intercept = normal(location = 8, scale = 2.5),
+    prior_aux = cauchy(),
+    refresh = 0,
+    cores = 1
+)
+```
+
+```{r}
+plot(m1_fit)
+```
+
+```{r}
+plot(bayestestR::hdi(m1_fit, ci = c(0.5, 0.75, 0.89, 0.95)), 
+     show_intercept = TRUE)
+```
+
+```{r}
+describe_posterior(m1_fit)
+```
+
+
+```{r}
+d %>%
+    distinct(episode_num) %>%
+    add_predicted_draws(m1_fit) %>%
+    ggplot(aes(x = episode_num, y = .prediction)) +
+    stat_lineribbon() +
+    scale_fill_brewer(palette = "Greys")
+```
+
+### Model with character word counts
+
+```{r}
+m2_priors <- stan_glm(
+    imdb_rating ~ 1 + Aang + Katara + Sokka + Iroh + Zuko + Azula + Toph,
+    data = d,
+    prior = normal(location = -0.1, scale = 1),
+    prior_intercept = normal(location = 8, scale = 2),
+    prior_aux = cauchy(location = 0, scale = 1),
+    prior_PD = TRUE,
+    refresh = 0,
+    cores = 1
+)
+```
+
+```{r}
+plot(m2_priors)
+```
+
+```{r}
+d %>%
+    modelr::data_grid(Aang = modelr::seq_range(Aang, n = 100),
+                      Katara = mean(Katara, n = 10),
+                      Sokka = mean(Sokka, n = 10),
+                      Iroh = mean(Iroh, n = 10),
+                      Zuko = mean(Zuko, n = 10),
+                      Azula = mean(Azula, n = 10),
+                      Toph = mean(Toph, n = 10)) %>%
+    add_predicted_draws(m2_priors) %>%
+    ggplot(aes(x = Aang, y = .prediction)) +
+    stat_lineribbon() +
+    scale_fill_brewer(palette = "Greys")
+```
+
