@@ -13,6 +13,16 @@ on a new “toy” data set.
 Log
 ---
 
+**September 8, 2020 - Friends**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-09-08/readme.md)
+\| [RScript](2020-09-08_friends.R)
+
+I just practiced designing a good-looking graphic. I have a long way to
+go, but it was a good first effort.
+
+![](2020-09-08_friends_files/friends-emotions.png)
+
 **August 11, 2020 - Avatar: The Last Airbender**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-08-11/readme.md)
