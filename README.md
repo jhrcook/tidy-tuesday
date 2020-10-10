@@ -48,7 +48,7 @@ to do fancy visualizations.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-28/readme.md)
 \| [analysis](2020-07-28_palmer-penguins.md)
 
-I took this TidyTuesday as an opporunity to try out the [‘ggeffects’
+I took this TidyTuesday as an opportunity to try out the [‘ggeffects’
 package](https://strengejacke.github.io/ggeffects/index.html).
 
 ![](2020-07-28_palmer-penguins_files/bodymass_by_measurements.png)
@@ -79,7 +79,7 @@ metrics.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-06-30/readme.md)
 \| [analysis](2020-06-30_uncanny-xmen.md)
 
-I played around with using DBSCAN and Affinity Propagration clustering.
+I played around with using DBSCAN and Affinity Propagation clustering.
 
 ![](2020-06-30_uncanny-xmen_files/figure-gfm/unnamed-chunk-13-1.png)
 
@@ -136,12 +136,12 @@ engineering to extract information form the list of ingredients.
 
 ![](2020-05-26_cocktails_files/figure-gfm/unnamed-chunk-10-1.png)
 
-**May 19, 2020 - Volcano Eruptions**
+**May 19, 2020 - Beach Volleyball**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-19/readme.md)
 \| [analysis](2020-05-19_beach-volleyball.md)
 
-I used logisitic models to predict winners and losers of volleyball
+I used logistic models to predict winners and losers of volleyball
 matches based on gameplay statistics (e.g. number of attacks, errors,
 digs, etc.). I found that including interactions with game duration
 increased the performance of the model without overfitting.
@@ -165,10 +165,10 @@ better understanding of how to interpret these models.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-05/readme.md)
 \| [analysis](2020-05-05_animal-crossing-new-horizons.md)
 
-I used sentiment analysis results on user reivews to model their review
+I used sentiment analysis results on user reviews to model their review
 grade using a multivariate Bayesian model fit with the quadratic
 approximation. The model was pretty awful, but I was able to get some
-good practice at this statisticaly techinque I am still learning.
+good practice at this statistical technique I am still learning.
 
 ![](2020-05-05_animal-crossing-new-horizons_files/figure-gfm/unnamed-chunk-7-1.png)
 
@@ -180,7 +180,7 @@ good practice at this statisticaly techinque I am still learning.
 This data set was not very interesting to me as the numerical values
 were basically all derived from a single value, making it very difficult
 to avoid highly correlative covariates when modeling. Still, I got some
-practice at creating an interpreting miced-effects models.
+practice at creating an interpreting mixed-effects models.
 
 ![](./2020-04-28_broadway-weekly-grosses_files/figure-gfm/unnamed-chunk-3-1.png)
 
@@ -222,7 +222,7 @@ rather than trying to understand every aspect of the data.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-03-31/readme.md)
 \| [analysis](2020-03-31_beer-production.md)
 
-I analyzed the number of breweries at varies size categoires and found a
+I analyzed the number of breweries at varies size categories and found a
 jump of very small microbreweries to higher capacity in 2018 and 2019.
 
 ![](./2020-03-31_beer-production_files/figure-gfm/unnamed-chunk-9-1.png)
@@ -244,7 +244,7 @@ interesting properties of the TBI sustained by the different age groups.
 \| [analysis](2020-03-10_college-tuition-diversity-and-pay.md)
 
 I tried to do some classic linear modeling and mixed effects modeling,
-but the dat didn’t really require it. Still, I got some practice with
+but the data didn’t really require it. Still, I got some practice with
 this method and read plenty about it online during the process.
 
 ![](./2020-03-10_college-tuition-diversity-and-pay_files/figure-gfm/unnamed-chunk-8-1.png)
