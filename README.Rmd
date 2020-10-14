@@ -17,6 +17,16 @@ library(fontawesome)
 
 ## Log
 
+**October 13, 2020 - Datasaurus Dozen**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-10-13/readme.md) | [RScript](2020-10-13_datasaurus-dozen.R)
+
+I used a simplified version of the algorithm used by the original [Datasaurus Dozen](https://www.autodesk.com/research/publications/same-stats-different-graphs) document from AutoDesk to create an animation of the transition from the dinosaur formation to the slant-down formation.
+At each step, the summary statistics remain unchanged to a precision of 0.01 units.
+
+![](2020-10-13_datasaurus-dozen_files/dino-slant-dino.gif)
+
+
 **September 8, 2020 - Friends**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-09-08/readme.md) | [RScript](2020-09-08_friends.R)
