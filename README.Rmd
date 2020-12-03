@@ -17,6 +17,15 @@ library(fontawesome)
 
 ## Log
 
+**December 1, 2020 - Toronto Shelters**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-01/readme.md) | [RScript](2020-12-01_toronto-shelters.R)
+
+(work in progress)
+
+![](2020-12-01_toronto-shelters_files/2020-12-01_toronto-shelters.pdf)
+
+
 **October 13, 2020 - Datasaurus Dozen**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-10-13/readme.md) | [RScript](2020-10-13_datasaurus-dozen.R)

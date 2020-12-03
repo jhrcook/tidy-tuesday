@@ -3,15 +3,22 @@
 Joshua Cook
 4/7/2020
 
-Tidy Tuesday
-============
+# Tidy Tuesday
 
 [`#TidyTuesday`](https://github.com/rfordatascience/tidytuesday) is a
 tradition in R where every Tuesday, we practice our data analysis skills
 on a new “toy” data set.
 
-Log
----
+## Log
+
+**December 1, 2020 - Toronto Shelters**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-01/readme.md)
+\| [RScript](2020-12-01_toronto-shelters.R)
+
+(work in progress)
+
+![](2020-12-01_toronto-shelters_files/2020-12-01_toronto-shelters.pdf)
 
 **October 13, 2020 - Datasaurus Dozen**
 
