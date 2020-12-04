@@ -149,6 +149,12 @@ ggsave(
   path = here::here(dir),
   width = 10, height = 6
 )
+ggsave(
+  filename = "2020-12-01_toronto-shelters.png",
+  plot = shelter_data_p_anno,
+  path = here::here(dir),
+  width = 10, height = 6
+)
 
 # Family by Wilson Joseph from the Noun Project
 # Man by Funky from the Noun Project

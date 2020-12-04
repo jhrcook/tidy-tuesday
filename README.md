@@ -27,7 +27,7 @@ together two plots), but eventually used
 [‘ggtext’](https://cran.r-project.org/package=ggtext) and inserted the
 images in the `strip.text` of the panels.
 
-![](2020-12-01_toronto-shelters_files/2020-12-01_toronto-shelters.pdf)
+![](2020-12-01_toronto-shelters_files/2020-12-01_toronto-shelters.png)
 
 **October 13, 2020 - Datasaurus Dozen**
 
