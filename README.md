@@ -16,7 +16,16 @@ on a new “toy” data set.
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-01/readme.md)
 \| [RScript](2020-12-01_toronto-shelters.R)
 
-(work in progress)
+Today I focused on style over substance (so please excuse the relative
+lack of creativity in the data presented in the plots), particularly by
+purposefully incorporating images from [The Noun
+Project](https://thenounproject.com). Initially, I tried to use the
+[‘ggimage’](https://CRAN.R-project.org/package=ggimage) package to
+insert the images along the tops of each panel (using
+[‘patchwork’](https://CRAN.R-project.org/package=patchwork) to piece
+together two plots), but eventually used
+[‘ggtext’](https://cran.r-project.org/package=ggtext) and inserted the
+images in the `strip.text` of the panels.
 
 ![](2020-12-01_toronto-shelters_files/2020-12-01_toronto-shelters.pdf)
 
