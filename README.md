@@ -11,6 +11,17 @@ on a new “toy” data set.
 
 ## Log
 
+**December 14, 2020 - Ninja Warrior**
+
+[data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-15/readme.md)
+\| [RScript](2020-12-15_ninja-warrior.R)
+
+Today’s data set was very challenging because of the limited amount of
+information. I’m quite pleased with my final product and think it is
+both visually appealing and clever.
+
+![](2020-12-15_ninja-warrior_files/ninja-warrior-graph.png)
+
 **December 1, 2020 - Toronto Shelters**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-01/readme.md)
