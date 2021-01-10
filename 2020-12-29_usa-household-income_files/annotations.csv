@@ -1,0 +1,33 @@
+annotation,information
+N,Not available.
+1,"A margin of error (MOE) is a measure of an estimate's variability. The larger the MOE in relation to the size of the estimate, the less reliable the estimate. This number, when added to and subtracted from the estimate, forms the 90 percent confidence interval. MOEs shown in this table are based on standard errors calculated using replicate weights. For more information, see ""Standard Errors and Their Use"" at <https://www2.census.gov/library/publications/2020/demo/p60-270sa.pdf>."
+2,"Estimates reflect the implementation of an updated data processing system, allowing users to evaluate the impact, and should be used to make comparisons to 2018 and subsequent years. 
+"
+3,"The 2014 CPS ASEC included redesigned questions for income and health insurance coverage. All of the approximately 98,000 addresses were eligible to receive the redesigned set of health insurance coverage questions. The redesigned income questions were implemented to a subsample of these 98,000 addresses using a probability split panel design. Approximately 68,000 addresses were eligible to receive a set of income questions similar to those used in the 2013 CPS ASEC and the remaining 30,000 addresses were eligible to receive the redesigned income questions. The source of these 2013 estimates is the portion of the CPS ASEC sample which received the redesigned income questions, approximately 30,000 addresses."
+4,"The source of these 2013 estimates is the portion of the CPS ASEC sample which received the income questions consistent with the 2013 CPS ASEC, approximately 68,000 addresses."
+5,"Implementation of 2010 Census-based population controls. Beginning with 2010, MOEs in this table were calculated using replicate weights. Before 2010, MOEs were calculated using the generalized variance function."
+6,"Median income is calculated using $2,500 intervals. Beginning with 2009 income data, the Census Bureau expanded the upper income intervals used to calculate medians to $250,000 or more. Medians falling in the upper open-ended interval are plugged with ""$250,000."" Before 2009, the upper open-ended interval was $100,000 and a plug of ""$100,000"" was used."
+7,Data have been revised to reflect a correction to the weights in the 2005 CPS ASEC.
+8,"Implementation of a 28,000 household sample expansion."
+9,Implementation of 2000 Census-based population controls.
+10,"Full implementation of 1990 Census-based sample design and metropolitan definitions, 7,000 household sample reduction, and revised editing of responses on race."
+11,Introduction of 1990 Census sample design.
+12,"Data collection method changed from paper and pencil to computer-assisted interviewing. In addition, the 1994 CPS ASEC was revised to allow for the coding of different income amounts on selected questionnaire items. Limits either increased or decreased in the following categories: earnings limits increased to $999,999; social security limits increased to $49,999; supplemental security income and public assistance limits increased to $24,999; veterans' benefits limits increased to $99,999; child support and alimony limits decreased to $49,999."
+13,Implementation of 1990 Census population controls.
+14,Implementation of a new CPS ASEC processing system.
+15,"Recording of amounts for earnings from longest job increased to $299,999. Full implementation of 1980 Census-based sample design."
+16,Implementation of Hispanic population weighting controls and introduction of 1980 Census-based sample design.
+17,Implementation of 1980 Census population controls. Questionnaire expanded to allow the recording of up to 27 possible values from a list of 51 possible sources of income.
+18,"First year medians were derived using both Pareto and linear interpolation. Before this year, all medians were derived using linear interpolation."
+19,"Some of these estimates were derived using Pareto interpolation and may differ from published data, which were derived using linear interpolation."
+20,Implementation of a new CPS ASEC processing system. Questionnaire expanded to ask 11 income questions.
+21,Full implementation of 1970 Census-based sample design.
+22,Introduction of 1970 Census sample design and population controls.
+23,Implementation of a new CPS ASEC processing system.
+24,"Beginning with the 2003 CPS ASEC, respondents were allowed to choose one or more races. White alone refers to people who reported White and did not report any other race category. The use of this single-race population does not imply that it is the preferred method of presenting or analyzing the data. The Census Bureau uses a variety of approaches."
+25,"For the year 2001 and earlier, the CPS ASEC allowed respondents to report only one race group."
+26,Black alone refers to people who reported Black and did not report any other race category.
+27,Asian alone refers to people who reported Asian and did not report any other race category.
+28,"Because Hispanics may be any race, data in this report for Hispanics overlap with data for racial groups. Hispanic origin was reported by 15.6 percent of White householders who reported only one race, 5.0 percent of Black householders who reported only one race, and 2.5 percent of Asian householders who reported only one race. Data users should exercise caution when interpreting aggregate results for the Hispanic population and for race groups because these populations consist of many distinct groups that differ in socioeconomic characteristics, culture, and recency of immigration. Data were first collected for Hispanics in 1972."
+Note:,Inflation-adjusted estimates may differ slightly from other published data due to rounding.
+Source:,"U.S. Census Bureau, Current Population Survey, 1968 to 2020 Annual Social and Economic Supplements (CPS ASEC)."
