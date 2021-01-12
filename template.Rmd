@@ -1,0 +1,39 @@
+---
+title: "Title"
+author: "Joshua Cook"
+date: "January 1, 2021"
+output: github_document
+---
+
+## Setup
+    
+TidyTuesday link: [2021/2021-01-01/readme.md]()
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(jhcutils)
+library(mustashe)
+library(nakedpipe)
+library(glue)
+library(patchwork)
+library(ggtext)
+library(magrittr)
+library(tidyverse)
+
+theme_set(theme_minimal())
+
+# To shut-up `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+set.seed(0)
+```
+
+## Data
+
+```{r}
+# Read in data
+```
+
+## EDA
+
