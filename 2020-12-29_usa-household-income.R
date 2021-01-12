@@ -9,21 +9,23 @@ library(tidyverse)
 
 files_dir <- "2020-12-29_usa-household-income_files"
 data_path <- here::here(
-  files_dir, 
+  files_dir,
   "Table A-2. Households by Total Money Income, Race, and Hispanic Origin of Householder 1967 to 2019.xlsx"
 )
 raw_data <- xlsx::read.xlsx2(data_path, sheetIndex = 1)
 
 annotations <- raw_data[seq(357, nrow(raw_data)), 1] %.% {
   as_tibble()
-  separate(value, into = c("annotation", "information"), sep=" ", extra = "merge")
+  separate(value, into = c("annotation", "information"), sep = " ", extra = "merge")
 }
 
 data <- raw_data
 column_names <- unname(unlist(data[4, ])) %>% janitor::make_clean_names()
 column_names[1:2] <- c("race_and_year", "number")
-column_names[13:16] <- c("estimated_median", "estimated_median_error", 
-                         "estimated_mean", "estimated_mean_error")
+column_names[13:16] <- c(
+  "estimated_median", "estimated_median_error",
+  "estimated_mean", "estimated_mean_error"
+)
 
 data <- data[5:353, ]
 colnames(data) <- column_names
@@ -48,7 +50,7 @@ clean_data$race <- race_column
 clean_data <- clean_data %.% {
   filter(!is.na(race))
   rename(year = race_and_year)
-  separate(year, into = c("year", "year_annotation"), sep=" ")
+  separate(year, into = c("year", "year_annotation"), sep = " ")
   mutate(
     year = as.numeric(year),
     race_annotation = str_extract(race, "[:digit:]+$"),
@@ -59,7 +61,7 @@ clean_data <- clean_data %.% {
   mutate(
     number = as.numeric(number),
     across(
-      starts_with("under") | starts_with("x") | contains("estimated"), 
+      starts_with("under") | starts_with("x") | contains("estimated"),
       as.numeric
     )
   )
@@ -73,8 +75,10 @@ average_income <- clean_data %>%
 income_by_race <- clean_data %.% {
   select(-c(estimated_median:estimated_mean_error))
   pivot_longer(-c(year:race_annotation, number), names_to = "income", values_to = "percent")
-  mutate(income = str_remove(income, "^x_|^x"),
-         income = str_replace_all(income, "_", " "))
+  mutate(
+    income = str_remove(income, "^x_|^x"),
+    income = str_replace_all(income, "_", " ")
+  )
 }
 
 write_csv(annotations, here::here(files_dir, "annotations.csv"))

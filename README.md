@@ -11,6 +11,27 @@ on a new “toy” data set.
 
 ## Log
 
+### 2021
+
+**December 29, 2020 - USA Household Income**
+
+[data](2020-12-29_usa-household-income.R) \|
+[analysis](2020-12-29_usa-household-income.Rmd)
+
+For the first week of the year, we were told to bring our favorite data
+from 2020. I decided to prepare my own data on US household income
+acquired from the [US Census
+Bureau](https://www.census.gov/library/publications/2020/demo/p60-270.html).
+The processing of that data was conducted in
+[“2020-12-29\_usa-household-income.R”](2020-12-29_usa-household-income.R).
+For the analysis, I just conducted simple EDA.
+
+![](2020-12-29_usa-household-income_files/figure-gfm/unnamed-chunk-9-1.png)
+
+------------------------------------------------------------------------
+
+### 2020
+
 **December 14, 2020 - Ninja Warrior**
 
 [data](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-12-15/readme.md)

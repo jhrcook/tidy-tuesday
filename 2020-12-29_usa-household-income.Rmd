@@ -1,0 +1,203 @@
+---
+title: "USA Household Income"
+author: "Joshua Cook"
+date: "December 29, 2020"
+output: github_document
+---
+
+## Setup
+    
+For the first week of the year, we were told to bring our favorite data from 2020.
+I decided to prepare my own data on US household income acquired from the [US Census Bureau](https://www.census.gov/library/publications/2020/demo/p60-270.html).
+The processing of that data was conducted in ["2020-12-29_usa-household-income.R"](2020-12-29_usa-household-income.R).
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 500)
+
+library(jhcutils)
+library(mustashe)
+library(nakedpipe)
+library(glue)
+library(patchwork)
+library(ggtext)
+library(magrittr)
+library(tidyverse)
+
+theme_set(theme_minimal())
+
+# To shut-up `summarise()`.
+options(dplyr.summarise.inform = FALSE)
+
+set.seed(0)
+
+files_dir <- "2020-12-29_usa-household-income_files"
+```
+
+## Data
+
+```{r}
+annotations <- read_csv(here::here(files_dir, "annotations.csv"))
+average_income <- read_csv(here::here(files_dir, "average_income.csv"))
+income_by_race <- read_csv(here::here(files_dir, "income_by_race.csv"))
+```
+
+## EDA
+
+```{r}
+head(average_income)
+```
+
+```{r}
+head(income_by_race)
+```
+```{r}
+income_by_race <- income_by_race %.% {
+  filter(
+    !year %in% c(2017, 2013) |
+      (year == 2017 & year_annotation == "2") |
+      (year == 2013 & year_annotation == "3")
+  )
+  mutate(
+    race = str_remove(race, " ALONE$| ALONE(?=,)"),
+    race = str_to_lower(race)
+  )
+  distinct()
+}
+```
+
+```{r}
+income_by_race %.%
+  {
+    filter(race != "all races")
+    mutate(race = str_wrap(race, 20))
+    distinct(year, race, number)
+  } %>%
+  ggplot(aes(year, number)) +
+  geom_col(aes(fill = race), position = "stack") +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.02))) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  theme(legend.title = element_blank()) +
+  labs(
+    x = "year",
+    y = "number of people",
+    title = "Number census respondents per race category",
+    subtitle = "There are still some groups that that represent double counting."
+  )
+```
+
+```{r}
+income_by_race %.%
+  {
+    mutate(income = fct_inorder(income))
+    filter(race != "all races")
+    mutate(race = str_wrap(race, 20))
+    filter(income %in% c("under 15 000", "200 000 and over"))
+  } %>%
+  ggplot(aes(x = year, y = percent)) +
+  facet_wrap(~income, ncol = 1) +
+  geom_line(aes(color = race))
+```
+```{r, fig.height=12}
+income_by_race %.%
+  {
+    mutate(income = fct_inorder(income))
+    filter(race != "all races")
+    mutate(race = str_wrap(race, 20))
+  } %>%
+  ggplot(aes(x = year, y = percent)) +
+  facet_wrap(~income, ncol = 1) +
+  geom_line(aes(color = race), alpha = 0.8) +
+  theme(panel.spacing = unit(2, "mm"))
+```
+
+```{r}
+average_income %.%
+  {
+    mutate(
+      race = str_wrap(race, 20),
+      race = str_to_lower(race),
+      median_low = estimated_median - estimated_median_error,
+      median_high = estimated_median + estimated_median_error,
+      mean_low = estimated_mean - estimated_mean_error,
+      mean_high = estimated_mean + estimated_mean_error
+    )
+  } %>%
+  ggplot(aes(x = year, color = race, fill = race)) +
+  facet_wrap(~race) +
+  geom_ribbon(
+    aes(ymin = median_low, ymax = median_high),
+    alpha = 0.2,
+    show.legend = FALSE
+  ) +
+  geom_line(aes(y = estimated_median)) +
+  geom_ribbon(
+    aes(ymin = mean_low, ymax = mean_high),
+    alpha = 0.2,
+    show.legend = FALSE
+  ) +
+  geom_line(aes(y = estimated_mean))
+```
+
+```{r}
+black_name_change_year <- average_income %.% {
+  filter(race == "BLACK ALONE OR IN COMBINATION")
+  pull(year)
+  min()
+}
+
+average_income %.%
+  {
+    filter(
+      !year %in% c(2017, 2013) |
+        (year == 2017 & year_annotation == "2") |
+        (year == 2013 & year_annotation == "3")
+    )
+    mutate(
+      race = str_to_lower(race),
+      race = str_remove(race, " alone$| alone(?=,)")
+    )
+    filter(!race %in% c("all races", "asian"))
+    filter(!(year >= black_name_change_year & race == "black"))
+    mutate(
+      race = case_when(
+        str_detect(race, "asian") ~ "asian",
+        str_detect(race, "black") ~ "black",
+        TRUE ~ race
+      ),
+      median_low = estimated_median - estimated_median_error,
+      median_high = estimated_median + estimated_median_error,
+    )
+  } %>%
+  ggplot(aes(x = year, y = estimated_median)) +
+  geom_ribbon(
+    aes(ymin = median_low, ymax = median_high, fill = race),
+    alpha = 0.2,
+    show.legend = FALSE
+  ) +
+  geom_line(aes(color = race)) +
+  geom_point(aes(color = race), size = 0.8, alpha = 0.5) +
+  scale_x_continuous(n.breaks = 10) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  scale_color_brewer(
+    type = "qual", palette = "Set1",
+    guide = guide_legend(override.aes = list(shape = NA))
+  ) +
+  scale_fill_brewer(type = "qual", palette = "Set1") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = c(0.15, 0.80),
+    legend.title = element_blank(),
+    legend.key.height = unit(5, "mm"),
+    legend.text = element_text(size = 10)
+  ) +
+  labs(
+    x = "year",
+    y = "estimated median household income",
+    title = "Average household income by race in the USA"
+  )
+```
+
+```{r}
+
+```
