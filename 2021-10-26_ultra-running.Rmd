@@ -1,0 +1,195 @@
+---
+title: "Ultra Trail Running"
+author: "Joshua Cook"
+date: "November 6, 2021"
+output: github_document
+---
+
+## Setup
+    
+TidyTuesday link: [2021/2021-10-26/readme.md](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-10-26/readme.md)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "#>", dpi = 300)
+
+library(mustashe)
+library(glue)
+library(patchwork)
+library(ggtext)
+library(magrittr)
+library(rstanarm)
+library(tidyverse)
+
+# Set default ggplot theme.
+theme_set(theme_minimal() + theme(plot.title = element_text(hjust = 0.5)))
+
+# Random see.
+set.seed(0)
+
+# MCMC cores.
+options(mc.cores = parallel::detectCores())
+
+# Miles to km multiplier constant.
+mile_per_km <- 0.6213712
+```
+
+## Data
+
+```{r}
+ultra_rankings <- readr::read_csv(
+  "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-26/ultra_rankings.csv"
+) %>%
+  janitor::clean_names() %>%
+  mutate(time_in_hr = time_in_seconds / 60 / 60)
+
+race <- readr::read_csv(
+  "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-10-26/race.csv"
+) %>%
+  janitor::clean_names() %>%
+  mutate(
+    participation = str_to_lower(participation),
+    distance_m = distance * mile_per_km
+  )
+```
+
+## EDA
+
+```{r}
+head(ultra_rankings)
+```
+
+```{r}
+glimpse(ultra_rankings)
+```
+
+```{r}
+head(race)
+```
+
+```{r}
+glimpse(race)
+```
+
+```{r}
+ultra_rankings %>%
+  filter(!is.na(time)) %>%
+  ggplot(aes(x = time_in_hr)) +
+  geom_histogram(bins = 30, color = "black", fill = "black", alpha = 0.25) +
+  scale_x_continuous(expand = expansion(c(0, 0))) +
+  scale_y_continuous(expand = expansion(c(0, 0.02))) +
+  labs(x = "time (hr)", y = "count", title = "Distribution of race times")
+```
+
+```{r}
+ultra_rankings %>%
+  filter(!is.na(time)) %>%
+  left_join(race %>% select(race_year_id, distance), by = "race_year_id") %>%
+  filter(distance > 0.0) %>%
+  filter(!is.na(distance)) %>%
+  mutate(time_per_km = time_in_hr / distance) %>%
+  ggplot(aes(x = time_per_km)) +
+  geom_histogram(bins = 30, color = "black", fill = "black", alpha = 0.25) +
+  scale_x_continuous(expand = expansion(c(0, 0))) +
+  scale_y_continuous(expand = expansion(c(0, 0.02))) +
+  labs(
+    x = "time per distance (hr/km)",
+    y = "count",
+    title = "Distribution of race times adjusted for distance"
+  )
+```
+
+```{r}
+ultra_rankings %>%
+  filter(!is.na(time)) %>%
+  left_join(race %>% select(race_year_id, distance), by = "race_year_id") %>%
+  filter(distance > 0.0) %>%
+  filter(distance > 150) %>%
+  filter(!is.na(gender)) %>%
+  ggplot(aes(x = distance, y = time_in_hr)) +
+  geom_point(aes(color = gender), alpha = 0.5, size = 0.2) +
+  geom_smooth(formula = "y~x", method = "lm", color = "black") +
+  geom_smooth(aes(color = gender), formula = "y~x", method = "lm") +
+  scale_color_brewer(
+    type = "qual",
+    palette = "Set1",
+    guide = guide_legend(
+      override.aes = list(size = 1.2, alpha = 1.0, fill = "white")
+    )
+  )
+```
+
+```{r}
+race %>%
+  filter(distance > 0) %>%
+  ggplot(aes(x = date, y = distance)) +
+  geom_point(alpha = 0.5, size = 1)
+```
+
+
+## Modeling
+
+```{r}
+d <- ultra_rankings %>%
+  filter(!is.na(time)) %>%
+  filter(!is.na(gender)) %>%
+  mutate(
+    gender = str_to_lower(gender),
+    sexM = (gender == "m")
+  ) %>%
+  left_join(
+    race %>% select(race_year_id, distance, date), 
+    by = "race_year_id"
+  ) %>%
+  filter(distance > 0) %>%
+  filter(distance > 150) %>%
+  mutate(
+    log_dist = log(distance),
+    log_dist_z = (log_dist - mean(log_dist)) / sd(log_dist),
+    runner = str_to_lower(runner),
+    runner = str_replace_all(runner, " ", "-"),
+    year = lubridate::year(date)
+  )
+```
+
+```{r}
+d %>%
+  ggplot(aes(x = log_dist_z, y = time_in_hr)) +
+  geom_point(aes(color = sexM), size = 0.4, alpha = 0.1) +
+  geom_smooth(aes(color = sexM), formula = "y~x", method = "lm")
+```
+
+```{r}
+length(unique(d$runner))
+```
+
+```{r}
+d %>%
+  count(runner, name = "num_runs") %>%
+  arrange(-num_runs) %>%
+  head()
+```
+
+```{r}
+pos <- position_jitterdodge(jitter.width = 0.2, jitter.height = 0, seed = 0)
+d %>%
+  mutate(time_per_dist = time_in_hr / distance) %>%
+  arrange(runner, date) %>%
+  group_by(runner, year) %>%
+  mutate(number_run_in_year = row_number()) %>%
+  ungroup() %>%
+  ggplot(aes(x = factor(number_run_in_year), y = time_per_dist)) +
+  geom_jitter(aes(color = sexM), size = 0.8, position = pos, alpha = 0.01) +
+  geom_boxplot(
+    aes(color = sexM), 
+    outlier.shape = NA, 
+    alpha = 0.25, 
+    fill = "white"
+  ) +
+  labs(x = "number of run in the year", y = "time per distance (hr/km)")
+```
+
+```{r}
+d %>%
+  count(runner, sexM, name = "total_num_runs") %>%
+  filter(total_num_runs > 2)
+```
